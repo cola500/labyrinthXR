@@ -1,0 +1,5 @@
+{
+  "name": "Labyrinth.Game",
+  "references": ["Labyrinth.Core"],
+  "autoReferenced": true
+}

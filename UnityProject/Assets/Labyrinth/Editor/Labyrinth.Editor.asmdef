@@ -1,0 +1,6 @@
+{
+  "name": "Labyrinth.Editor",
+  "references": ["Labyrinth.Core", "Labyrinth.Game", "Unity.XR.Management", "Unity.XR.Management.Editor", "Unity.XR.Oculus", "Unity.XR.Oculus.Editor"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": false
+}

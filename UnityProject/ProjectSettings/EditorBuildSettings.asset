@@ -1,0 +1,13 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/Labyrinth.unity
+    guid: c47462230022e44aea9f484369fac0d6
+  m_configObjects:
+    Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 7f61beeaa365a405c9b2da5f2327ad44, type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 153c612f858a146b68f486e25963f18c, type: 2}

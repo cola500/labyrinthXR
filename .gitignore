@@ -1,0 +1,11 @@
+UnityProject/[Ll]ibrary/
+UnityProject/[Tt]emp/
+UnityProject/[Oo]bj/
+UnityProject/[Ll]ogs/
+UnityProject/[Bb]uilds/
+UnityProject/[Uu]ser[Ss]ettings/
+UnityProject/*.csproj
+UnityProject/*.sln
+.DS_Store
+UnityProject/.utmp/
+UnityProject/[Bb]uild/
