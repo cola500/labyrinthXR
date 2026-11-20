@@ -1,6 +1,6 @@
 # DISCOVERY — Hand tracking for LabyrinthXR
 
-Status: **Spike 0 implemented (OpenXR, controllers only); headset verification pending. Spike 1 not started.**
+Status: **Spike 0 done and verified on Quest 3 (OpenXR, controllers only). Spike 1 in progress.**
 Discovery was Read-only investigation on 2026-11-20 at commit `0f59e8f`; no
 packages installed, no project files changed. Implementation needs explicit approval (see §7).
 
@@ -121,7 +121,13 @@ Toolkit 3.4.1 for reference).
   via Meta Quest Support's "force remove internet permission" if wanted); removed the `com.unity.xr.oculus.*` meta-data.
 - **APKs (not in git):** reference `UnityProject/Builds/reference/LabyrinthXR-oculus-0f59e8f.apk` (Oculus XR, built
   from `0f59e8f`), Spike 0 `UnityProject/Builds/reference/LabyrinthXR-openxr-spike0.apk`.
-- **Headset:** not yet verified.
+- **Headset (Quest 3, 2026-11-20, player + device log):** player confirmed: app starts in VR with the labyrinth in
+  front; left and right handles each alone and together; release keeps the handle's position; A/X restart; hold B/Y
+  to Level 1 (short press does nothing); recenter re-places the labyrinth; Levels 1–4 played through, Level 5 loaded
+  and played (not completed; it is the hardest); feel unchanged vs. the Oculus build (player's judgement, no
+  side-by-side run). Log: OpenXR runtime "Oculus" 210.137.0, session reaches FOCUSED in ~0.3 s, Oculus Touch profile
+  bound (17 actions), no errors or exceptions, same process for the whole session; VrApi 72–73/72 FPS, isolated
+  stale frames only while a system process (Meta menu / recenter) was active.
 
 ## 6. Verification plan
 
