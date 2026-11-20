@@ -1,6 +1,6 @@
 # DISCOVERY — Hand tracking for LabyrinthXR
 
-Status: **Spike 0 done and verified on Quest 3 (OpenXR, controllers only). Spike 1 implemented; headset verification pending.**
+Status: **Spike 0 done and verified on Quest 3 (OpenXR, controllers only). Spike 1 implemented and played on Quest 3 (right hand works the roll handle; two edge cases not yet run on the headset).**
 Discovery was Read-only investigation on 2026-11-20 at commit `0f59e8f`; no
 packages installed, no project files changed. Implementation needs explicit approval (see §7).
 
@@ -155,7 +155,21 @@ Toolkit 3.4.1 for reference).
   First render had the pinch point inside the knob (tips hidden): the simulated pose was wrong, fixed in the test helper.
   Layout only; real tracked poses exist only on the headset.
 - **Build:** OK, 25 MB, `UnityProject/Builds/reference/LabyrinthXR-hands-spike1.apk`; manifest checked with aapt2.
-- **Headset:** not yet verified.
+- **Headset (Quest 3, 2026-11-20 09:44–09:47, installed over wifi ADB; player + `[Hands]` log):**
+  - Player: the right hand works the roll handle; **fine control of the ball was good**; the short grab/release pairs
+    in the log were deliberate re-pinches.
+  - Log: XR Hands running (`XR_EXT_hand_tracking`), pinch threshold logged as close <3.1 cm / open >3.8 cm. Controller
+    put down → source Controller → None → Hand in ~0.1 s with the handle kept (+0.47); controller picked up later →
+    Hand → None → Controller, handle kept (+0.10). Grabs at 1.4–7.1 cm pinch-to-knob.
+  - **Holding still** (1 s windows while held): palm SD 0.4–1.5 mm, range 1.3–6 mm, handle spread ≤0.07 (of ±1).
+    **Fine corrections:** palm SD 3–9 mm, handle moved within about ±0.25. Big sweeps: 15–26 cm, full ±1.
+  - **Pinch margin is thin:** while holding, the tip distance peaked at 3.0–3.7 cm against the 3.8 cm release
+    threshold; one hold ended at exactly 3.8 cm. Not reported as an unintended drop by the player, but the margin is
+    under 1 cm. Candidate tweak (not done): open threshold ~4.5 cm (e.g. `OpenDistance` 0.06 m).
+  - FPS 72–73/72 with hand-tracking frequency HIGH; no errors.
+  - **Not run on the headset:** a hand returning to view with the pinch still closed (no tracking loss happened while
+    holding), and picking up the controller *while* the hand holds the handle (the switch happened after a release).
+    Both are covered only by the automated tests.
 
 ## 6. Verification plan
 
