@@ -8,7 +8,8 @@ LabyrinthXR: a cozy VR adaptation of the wooden tilt-maze toy for Meta Quest 3 (
 a 1.1 m wooden labyrinth on a table and tilts it with two handles: left hand = pitch (push away = far edge down), right
 hand = roll (push right = right edge down). A steel ball rolls by Unity physics; holes reset it, the goal wins.
 Five levels (`docs/FEATURE-levels.md`). Specs: `docs/EPIC-001.md` (base game: scope, DoR/DoD, verification log),
-`docs/FEATURE-levels.md` (levels: design, difficulty measures, evidence). Keep "automated test" / "off-headset render" /
+`docs/FEATURE-levels.md` (levels: design, difficulty measures, evidence), `docs/DISCOVERY-hand-tracking.md` (hand
+tracking feasibility and proposed spikes; nothing implemented, needs approval). Keep "automated test" / "off-headset render" /
 "build" / "headset" claims separate, and never claim headset verification from desktop runs.
 
 Sibling projects `../lilla-fruktstandet-funplay-spike` and `../CampfireVR` are reference only (patterns were copied
