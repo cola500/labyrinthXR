@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.unity.inputsystem": "1.19.0",
     "com.unity.modules.androidjni": "1.0.0",
     "com.unity.modules.audio": "1.0.0",
     "com.unity.modules.imageconversion": "1.0.0",
@@ -10,6 +11,6 @@
     "com.unity.modules.xr": "1.0.0",
     "com.unity.test-framework": "1.6.0",
     "com.unity.xr.management": "4.5.0",
-    "com.unity.xr.oculus": "4.5.0"
+    "com.unity.xr.openxr": "1.16.1"
   }
 }

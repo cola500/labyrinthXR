@@ -146,7 +146,6 @@ PlayerSettings:
   bundleVersion: 1.0
   preloadedAssets:
   - {fileID: -3901263737751541435, guid: 153c612f858a146b68f486e25963f18c, type: 2}
-  - {fileID: 11400000, guid: 7f61beeaa365a405c9b2da5f2327ad44, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   xboxOneDisableKinectGpuReservation: 1
@@ -776,7 +775,7 @@ PlayerSettings:
   qnxGraphicConfPath: 
   apiCompatibilityLevel: 6
   captureStartupLogs: {}
-  activeInputHandler: 0
+  activeInputHandler: 2
   windowsGamepadBackendHint: 0
   enableDirectStorage: 0
   cloudProjectId: 

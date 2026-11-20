@@ -1,19 +1,23 @@
-// Quest configuration and APK build, adapted from Lilla fruktståndet (itself from Magic Tiles / CampfireVR): Oculus XR
-// loader on Android only, IL2CPP/ARM64, min SDK 29, target SDK 34, Vulkan, multiview. Desktop/Standalone and the editor
-// get no XR loader, so they stay non-VR (DesktopInput). Batch: -buildTarget Android -executeMethod
-// Labyrinth.EditorTools.QuestBuild.Build
+// Quest configuration and APK build: OpenXR loader on Android only with the Meta Quest Support feature and the Oculus
+// Touch controller profile, IL2CPP/ARM64, min SDK 29, target SDK 34, Vulkan, single-pass instanced (multiview).
+// Desktop/Standalone and the editor get no XR loader, so they stay non-VR (DesktopInput). Active input handling is
+// "Both": OpenXR needs the Input System package, DesktopInput uses the legacy Input Manager.
+// Batch: -buildTarget Android -executeMethod Labyrinth.EditorTools.QuestBuild.Build
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Unity.XR.Oculus;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.XR.Management;
 using UnityEditor.XR.Management.Metadata;
+using UnityEditor.XR.OpenXR.Features;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.XR.Management;
+using UnityEngine.XR.OpenXR;
+using UnityEngine.XR.OpenXR.Features.Interactions;
+using UnityEngine.XR.OpenXR.Features.MetaQuestSupport;
 
 namespace Labyrinth.EditorTools
 {
@@ -22,7 +26,8 @@ namespace Labyrinth.EditorTools
         public const string ApplicationId = "com.labyrinthxr.prototype";
         public const string ApkPath = "Builds/LabyrinthXR-quest.apk";
         const string XrSettingsPath = "Assets/XR/XRGeneralSettingsPerBuildTarget.asset";
-        const string OculusSettingsPath = "Assets/XR/Settings/OculusSettings.asset";
+        const string OpenXrLoader = "UnityEngine.XR.OpenXR.OpenXRLoader";
+        const int ActiveInputHandlingBoth = 2;
 
         [MenuItem("Labyrinth/Quest: configure project")]
         public static void Configure()
@@ -41,13 +46,48 @@ namespace Labyrinth.EditorTools
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
             PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.Vulkan, GraphicsDeviceType.OpenGLES3 });
             PlayerSettings.colorSpace = ColorSpace.Linear;
+            EnsureActiveInputHandlingBoth();
 
-            var oculus = OculusSettingsAsset();
             var manager = AndroidXrManager();
-            var assigned = XRPackageMetadataStore.AssignLoader(manager, "Unity.XR.Oculus.OculusLoader", BuildTargetGroup.Android);
+            foreach (var loader in manager.activeLoaders.Where(l => l == null || l.GetType().FullName != OpenXrLoader).ToList())
+                manager.TryRemoveLoader(loader);
+            var assigned = XRPackageMetadataStore.AssignLoader(manager, OpenXrLoader, BuildTargetGroup.Android);
+            var features = ConfigureOpenXr();
             EnsurePreloadedXrAssets();
             AssetDatabase.SaveAssets();
-            Debug.Log($"[QuestBuild] Configured: id={ApplicationId}, Oculus loader assigned={assigned || manager.activeLoaders.Count > 0}, Quest 3={oculus.TargetQuest3}");
+            Debug.Log($"[QuestBuild] Configured: id={ApplicationId}, loaders=[{string.Join(", ", manager.activeLoaders.Select(l => l.GetType().Name))}] (assigned now={assigned}), {features}");
+        }
+
+        // Meta Quest Support (Quest manifest entries, all Quest models as targets) and the Oculus Touch interaction
+        // profile, which the Quest 3 runtime serves for its Touch Plus controllers. Everything else stays off.
+        static string ConfigureOpenXr()
+        {
+            FeatureHelpers.RefreshFeatures(BuildTargetGroup.Android);
+            var settings = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);
+            if (settings == null) throw new BuildFailedException("[QuestBuild] No OpenXR settings for Android.");
+            var quest = settings.GetFeature<MetaQuestFeature>();
+            var touch = settings.GetFeature<OculusTouchControllerProfile>();
+            if (quest == null || touch == null) throw new BuildFailedException("[QuestBuild] OpenXR Meta Quest feature or Oculus Touch profile missing.");
+            quest.enabled = true;
+            touch.enabled = true;
+            settings.renderMode = OpenXRSettings.RenderMode.SinglePassInstanced;
+            EditorUtility.SetDirty(quest);
+            EditorUtility.SetDirty(touch);
+            EditorUtility.SetDirty(settings);
+            var on = settings.GetFeatures().Where(f => f.enabled).Select(f => f.GetType().Name);
+            return $"OpenXR features on=[{string.Join(", ", on)}], renderMode={settings.renderMode}";
+        }
+
+        static void EnsureActiveInputHandlingBoth()
+        {
+            var player = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset").FirstOrDefault();
+            if (player == null) return;
+            var so = new SerializedObject(player);
+            var prop = so.FindProperty("activeInputHandler");
+            if (prop == null || prop.intValue == ActiveInputHandlingBoth) return;
+            prop.intValue = ActiveInputHandlingBoth;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            Debug.Log("[QuestBuild] Active input handling set to Both (takes effect after an editor restart).");
         }
 
         [MenuItem("Labyrinth/Quest: build APK")]
@@ -71,24 +111,6 @@ namespace Labyrinth.EditorTools
             if (Application.isBatchMode) EditorApplication.Exit(ok ? 0 : 1);
         }
 
-        static OculusSettings OculusSettingsAsset()
-        {
-            var settings = AssetDatabase.LoadAssetAtPath<OculusSettings>(OculusSettingsPath);
-            if (settings == null)
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(OculusSettingsPath));
-                settings = ScriptableObject.CreateInstance<OculusSettings>();
-                AssetDatabase.CreateAsset(settings, OculusSettingsPath);
-            }
-            settings.m_StereoRenderingModeAndroid = OculusSettings.StereoRenderingModeAndroid.Multiview;
-            settings.TargetQuest2 = true;
-            settings.TargetQuest3 = true;
-            settings.TargetQuest3S = true;
-            EditorUtility.SetDirty(settings);
-            EditorBuildSettings.AddConfigObject("Unity.XR.Oculus.Settings", settings, true);
-            return settings;
-        }
-
         static XRManagerSettings AndroidXrManager()
         {
             var perTarget = AssetDatabase.LoadAssetAtPath<XRGeneralSettingsPerBuildTarget>(XrSettingsPath);
@@ -99,6 +121,7 @@ namespace Labyrinth.EditorTools
                 AssetDatabase.CreateAsset(perTarget, XrSettingsPath);
             }
             EditorBuildSettings.AddConfigObject(XRGeneralSettings.k_SettingsKey, perTarget, true);
+            EditorBuildSettings.RemoveConfigObject("Unity.XR.Oculus.Settings"); // left over from the Oculus XR plugin
 
             var general = perTarget.SettingsForBuildTarget(BuildTargetGroup.Android);
             if (general == null)
@@ -118,22 +141,22 @@ namespace Labyrinth.EditorTools
             return general.Manager;
         }
 
-        // CampfireVR found that Unity 6 + XR Management can drop these from preloadedAssets during a build, which
-        // ships an APK where XR never starts. Re-added before and after every build.
+        // CampfireVR found that Unity 6 + XR Management can drop XRGeneralSettings from preloadedAssets during a build,
+        // which ships an APK where XR never starts. Re-added before and after every build; stale (deleted) entries are
+        // dropped. OpenXR's own build processor adds its settings for the build itself.
         internal static void EnsurePreloadedXrAssets()
         {
             var required = new List<Object>();
             var general = AssetDatabase.LoadAllAssetsAtPath(XrSettingsPath).OfType<XRGeneralSettings>().FirstOrDefault();
             if (general != null) required.Add(general);
-            var oculus = AssetDatabase.LoadAssetAtPath<OculusSettings>(OculusSettingsPath);
-            if (oculus != null) required.Add(oculus);
 
-            var current = (PlayerSettings.GetPreloadedAssets() ?? new Object[0]).Where(o => o != null).ToList();
+            var raw = PlayerSettings.GetPreloadedAssets() ?? new Object[0];
+            var current = raw.Where(o => o != null).ToList();
             var missing = required.Where(r => !current.Contains(r)).ToList();
-            if (missing.Count == 0) return;
+            if (missing.Count == 0 && current.Count == raw.Length) return;
             PlayerSettings.SetPreloadedAssets(current.Concat(missing).ToArray());
             AssetDatabase.SaveAssets();
-            Debug.Log($"[QuestBuild] Restored {missing.Count} XR entries in preloadedAssets.");
+            Debug.Log($"[QuestBuild] preloadedAssets: restored {missing.Count} XR entries, dropped {raw.Length - current.Count} missing.");
         }
     }
 

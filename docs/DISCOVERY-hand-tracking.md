@@ -1,6 +1,7 @@
 # DISCOVERY — Hand tracking for LabyrinthXR
 
-Status: **discovery complete; nothing implemented.** Read-only investigation on 2026-11-20 at commit `0f59e8f`; no
+Status: **Spike 0 implemented (OpenXR, controllers only); headset verification pending. Spike 1 not started.**
+Discovery was Read-only investigation on 2026-11-20 at commit `0f59e8f`; no
 packages installed, no project files changed. Implementation needs explicit approval (see §7).
 
 ## 1. Current state (verified in the project)
@@ -102,6 +103,25 @@ Toolkit 3.4.1 for reference).
 - **Visual:** rendered snapshot of the debug markers at the knob (layout only, not real tracking).
 - **Headset:** the expected behaviour above, plus a log of palm jitter while holding still.
 - Two-handed play follows in a later spike, only if this one passes.
+
+### Spike 0 — results (2026-11-20)
+- **Change:** `com.unity.xr.oculus` removed; `com.unity.xr.openxr` 1.16.1 + `com.unity.inputsystem` 1.19.0 added (both
+  bundled with the editor; Unity OpenXR: Meta not added, no need yet). Android loader = `OpenXRLoader` only; OpenXR
+  features on: Meta Quest Support, Oculus Touch controller profile; render mode single-pass instanced; active input
+  handling Both. `QuestBuild.Configure` sets all of this and drops the stale Oculus config object / preloaded asset.
+  Game code unchanged (`XrRig` still reads `UnityEngine.XR.InputDevices`).
+- **Automated tests:** EditMode 67/67 passed; PlayMode 35 passed, 2 skipped (the `Snapshots_*` renders, which skip
+  without graphics by design) of 37 — same as the 67 + 35 reference.
+- **Build:** `scripts/labyrinth.sh build` OK, 24 MB. OpenXR build validation: three `[Optional]` hints only
+  (PoseControl type, StickControl, latency optimization "Prioritize Input Polling"); none applied.
+- **Manifest** (aapt2, vs. the Oculus reference APK): still `com.oculus.intent.category.VR` + LAUNCHER,
+  `android.hardware.vr.headtracking` required, `com.oculus.vr.focusaware`; `supportedDevices` now
+  `quest|quest2|cambria|eureka|quest3s` (was `quest2|eureka|quest3s`); added `org.khronos.openxr.permission.OPENXR(_SYSTEM)`,
+  the OpenXR runtime-service queries and `android.permission.INTERNET` (added by the OpenXR package; can be stripped
+  via Meta Quest Support's "force remove internet permission" if wanted); removed the `com.unity.xr.oculus.*` meta-data.
+- **APKs (not in git):** reference `UnityProject/Builds/reference/LabyrinthXR-oculus-0f59e8f.apk` (Oculus XR, built
+  from `0f59e8f`), Spike 0 `UnityProject/Builds/reference/LabyrinthXR-openxr-spike0.apk`.
+- **Headset:** not yet verified.
 
 ## 6. Verification plan
 
