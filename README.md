@@ -26,14 +26,15 @@ Controls with the Touch controllers:
 - **Hold B or Y** (1.5 s) – back to Level 1.
 - The current level is shown on the walnut plaque on the front of the frame.
 
-Bare right hand (experimental): turn on hand tracking and automatic hand/controller switching in the Quest settings,
-then put both controllers down.
-- **Pinch** thumb and index finger near the right knob (closes below ~3.1 cm between the fingertips) and move your
-  hand sideways; the handle follows your palm. Open the hand (above ~4.5 cm) to let go; the handle stays put.
+Bare hands: turn on hand tracking and automatic hand/controller switching in the Quest settings, then put both
+controllers down.
+- **Pinch** thumb and index finger near a knob (closes below ~3.1 cm between the fingertips) and move your hand:
+  left hand forward/back, right hand sideways; the handle follows your palm. Both hands work at once. Open the hand
+  (above ~4.5 cm) to let go; the handle stays put.
 - Losing tracking or picking up a controller releases the handle where it is. A hand that comes back already
   pinched does not grab: open and pinch again.
 - Coloured debug markers show the tracked palm (blue), thumb tip (red) and index tip (green).
-- Only the right handle is hand-driven so far; picking up the left controller switches the Quest back to controllers.
+- Picking up a controller switches the Quest back to controllers (for both hands).
 
 Fit the labyrinth to the player (saved on the headset):
 - **Table height:** pinch or grip a brass grip on the table's front edge and move your hand up or down (or right

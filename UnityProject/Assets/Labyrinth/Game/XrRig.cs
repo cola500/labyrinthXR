@@ -1,8 +1,8 @@
 // VR input for Quest Touch controllers through UnityEngine.XR.InputDevices (as in Lilla fruktståndet and CampfireVR:
-// no XR Interaction Toolkit), plus an optional bare right hand through XR Hands (Spike 1). The left hand works the
+// no XR Interaction Toolkit), plus bare hands through XR Hands (right: Spike 1; left: the fit feature). The left hand works the
 // pitch handle, the right hand the roll handle, each through its own HandDriver, so both work at the same time and
 // neither can take the other's handle. Per hand a tracked controller always wins; the right handle falls back to the
-// tracked bare right hand (pinch near the knob, move the hand sideways). Switching source or losing tracking releases
+// tracked bare hand (pinch near the knob; the left hand moves forward/back, the right sideways). Switching source or losing tracking releases
 // the handle where it is (HandGrip).
 // Fit (PlayerFit): any hand can pinch/grip a brass table-height grip and move up/down, or a handle's wooden base and
 // move sideways (both handles follow symmetrically), or hold a fingertip/controller on the reset button for 1 s;
@@ -32,7 +32,7 @@ namespace Labyrinth.Game
         [Tooltip("Spike 1: the bare right hand may work the roll handle when the right controller is not tracked.")]
         [SerializeField] bool rightBareHand = true;
         [Tooltip("The bare left hand may work the pitch handle when the left controller is not tracked.")]
-        [SerializeField] bool leftBareHand;
+        [SerializeField] bool leftBareHand = true;
         [SerializeField] bool showHandMarkers = true;
         [Tooltip("Thumb-tip to index-tip distance (m) below which a pinch closes / above which it opens.")]
         [SerializeField] float pinchPress = 0.031f;
@@ -43,6 +43,7 @@ namespace Labyrinth.Game
         readonly HandPinch pinch = new(); // HandGrip's default thresholds
         readonly XrHands hands = new();
         readonly HandLog log = new("right");
+        readonly HandLog leftLog = new("left");
         readonly List<XRInputSubsystem> subsystems = new();
         Transform leftHand, rightHand;
         HandMarkers rightMarkers, leftMarkers;
@@ -80,7 +81,7 @@ namespace Labyrinth.Game
                 s.trackingOriginUpdated += OnRecenter;
             }
             Application.onBeforeRender += UpdateHead;
-            Debug.Log($"[Hands] start: bare right hand={(rightBareHand ? "on" : "off")}, hand subsystem running={hands.Running}, pinch closes <{pinchPress * 100f:0.0} cm, opens >{pinchRelease * 100f:0.0} cm");
+            Debug.Log($"[Hands] start: bare left hand={(leftBareHand ? "on" : "off")}, bare right hand={(rightBareHand ? "on" : "off")}, hand subsystem running={hands.Running}, pinch closes <{pinchPress * 100f:0.0} cm, opens >{pinchRelease * 100f:0.0} cm");
         }
 
         void OnDestroy()
@@ -114,7 +115,7 @@ namespace Labyrinth.Game
             pinch.PressDistance = pinchPress;
             pinch.ReleaseDistance = pinchRelease;
 
-            var (restartL, firstL, stickL) = Hand(XRNode.LeftHand, left, game.Pitch, game.PitchLever, leftHand, leftBareHand, leftMarkers, null);
+            var (restartL, firstL, stickL) = Hand(XRNode.LeftHand, left, game.Pitch, game.PitchLever, leftHand, leftBareHand, leftMarkers, leftLog);
             var (restartR, firstR, stickR) = Hand(XRNode.RightHand, right, game.Roll, game.RollLever, rightHand, rightBareHand, rightMarkers, log);
             Sticks(stickL, stickR);
             ShowFitControls();

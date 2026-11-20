@@ -15,7 +15,7 @@ namespace Labyrinth.Game
         [SerializeField] Color goalWon = new(0.45f, 1.0f, 0.45f);
         [SerializeField, Range(0f, 1f)] float rollVolume = 0.35f;
 
-        public string Hint = "Grab the handles with the grip buttons\nLeft handle: tilt forward and back\nRight handle: tilt left and right";
+        public string Hint = "Grab the handles with the grip buttons or a pinch\nLeft handle: tilt forward and back\nRight handle: tilt left and right";
         public string Text => message != null ? message.text : "";
         public string PlaqueText => plaque != null ? plaque.text : "";
         public const float FitMessageSeconds = 2.5f;

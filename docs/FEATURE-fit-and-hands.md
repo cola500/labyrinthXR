@@ -66,3 +66,23 @@ spacing the level plaque no longer fits between the handle bases and moves onto 
   25 cm too low (the helper added the root's height twice); fixed before judging the images.
 - **Build:** OK, 25 MB, `UnityProject/Builds/reference/LabyrinthXR-fit.apk`.
 - **Headset:** not yet.
+
+## 2. Left bare hand
+
+- The left hand reuses the right hand's path unchanged (`XrHands.TryGet(left)`, `HandSample.FromHand`, `HandPinch`,
+  `HandDriver`/`HandGrip`): pinch near the left knob and move the hand forward/back for the pitch handle. Each hand
+  only works its own handle; both work at once; a tracked controller wins per hand. Debug markers and `[Hands] left:`
+  log lines like the right hand's. The hint now says "grip buttons or a pinch".
+- One hand losing tracking releases only its handle (in place); the other keeps steering. A hand that returns pinched
+  must open and pinch again (`HandGrip`, as for the right hand).
+
+### Evidence
+- **Automated:** EditMode 84/84; PlayMode 58 passed, 4 skipped renders, of 62 (6 new in `TwoHandTests`: left pinch
+  pitches forward/back and leaves roll alone; each hand only its own handle and axis; both at once tilt both axes and
+  the ball rolls the diagonal; left tracking lost while both hold → right keeps steering, left returns pinched → no
+  grab, no jump, re-pinch grabs without a jump; both hands at the 0.70 m / 30 cm fit; Touch controllers grab and move
+  both handles at the default and a custom fit).
+- **Render** (`Snapshots_Fit`, both hands' markers at 0.70 m / 30 cm): thumb/index tips at each knob's player-side
+  surface, palms behind and outside each knob; the knobs ~30 cm apart with room for both hands.
+- **Build:** OK, 25 MB, `UnityProject/Builds/reference/LabyrinthXR-fit-twohands.apk`.
+- **Headset:** not yet.

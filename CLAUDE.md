@@ -51,7 +51,7 @@ simulation mode); `RealFrameLoop_*` covers the real FixedUpdate/Update loop, whi
   `MazeMaterials` serialized on `LabyrinthGame`. `BoardBuilder` builds the rest (board rim, ball, frame, table,
   handles, level plaque) and Level 1's maze at edit time (used by `SceneSetup`; the scene stores the result). `FloorMesh` = one mesh with round holes (non-uniform grid, hole tiles zipped to circles, no
   T-junctions; the MeshCollider uses its top surface). `LeverView` = the visible handle. `XrRig` reads controllers via
-  `UnityEngine.XR.InputDevices` (no XRI) and, for the roll handle only, the bare right hand via `XrHands` (XR Hands:
+  `UnityEngine.XR.InputDevices` (no XRI) and both bare hands via `XrHands` (XR Hands, left = pitch, right = roll:
   pinch point grabs, palm moves; `HandInput.cs`: `HandSample`/`HandDriver`/`HandMarkers`, `[Hands]` logcat lines),
   and places the labyrinth in front of the player on start and
   recenter. `DesktopInput` (WASD/arrows, R) works only without XR and outside batch mode. `LabyrinthFeedback` = message,

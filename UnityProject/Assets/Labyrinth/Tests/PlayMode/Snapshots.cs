@@ -157,6 +157,7 @@ namespace Labyrinth.Tests
             g.LoadLevel(1);
             var rig = Object.FindAnyObjectByType<XrRig>();
             var markers = new HandMarkers(new GameObject("HandMarkersTest").transform, rig.HandMaterial, "Sim");
+            var leftMarkers = new HandMarkers(new GameObject("LeftHandMarkersTest").transform, rig.HandMaterial, "SimLeft");
             foreach (var (name, height, spacing) in new[] { ("F1-default", PlayerFit.DefaultTableHeight, PlayerFit.DefaultLeverSpacing), ("F2-low-narrow", 0.70f, 0.15f) })
             {
                 g.SetFit(height, spacing, "snapshot");
@@ -167,6 +168,9 @@ namespace Labyrinth.Tests
                 var hand = SimulatedHand.AtKnob(g.transform, g.RollLever.Knob);
                 hand.Tips = 0.02f;
                 markers.Show(true, hand.Palm, hand.ThumbTip, hand.IndexTip, true);
+                var lhand = SimulatedHand.AtKnob(g.transform, g.PitchLever.Knob, left: true);
+                lhand.Tips = 0.02f;
+                leftMarkers.Show(true, lhand.Palm, lhand.ThumbTip, lhand.IndexTip, true);
                 yield return null;
                 var top = g.transform.position.y + g.SurfaceHeight; // world board surface
                 Vector3 At(float x, float y, float z) // (x, z) in the labyrinth's floor plan, y = world height
@@ -184,6 +188,7 @@ namespace Labyrinth.Tests
                 Shot($"{name}-e-fit-controls", towards + g.transform.TransformDirection(new Vector3(-0.05f, 0.35f, -0.55f)), towards, 60);
             }
             markers.Destroy();
+            leftMarkers.Destroy();
             g.SetFit(PlayerFit.DefaultTableHeight, PlayerFit.DefaultLeverSpacing, "snapshot");
         }
 
