@@ -36,7 +36,7 @@ simulation mode); `RealFrameLoop_*` covers the real FixedUpdate/Update loop, whi
 - `Labyrinth.Core` (pure, EditMode-tested): `Lever` (handle value -1..1 from hand travel, end stops, optional return to
   neutral), `TiltAxis` (handle -> board degrees: limit, exponential smoothing, rate limit), `HandGrip` (fresh grip press
   near the knob grabs; hysteresis; tracking loss or a source switch releases and the grip must open before the next
-  press), `SourceChoice` (controller wins, else bare hand), `HandPinch` (thumb-index tip distance -> 0..1), `Round` (Playing -> Falling -> reset -> Playing; Won until
+  press), `SourceChoice` (controller wins, else bare hand), `HandPinch` (thumb-index tip distance -> 0..1; closes <3.1 cm, opens >4.5 cm), `Round` (Playing -> Falling -> reset -> Playing; Won until
   Restart), `MazeLayout` (one level: walls/holes/start/goal/route in cell units, `ToBoard` -> metres), `Levels` (the
   five layouts as data, same board/ball/hole sizes), `Campaign` (level index; a won level advances after 2.5 s; Level 5
   stays won = completion).

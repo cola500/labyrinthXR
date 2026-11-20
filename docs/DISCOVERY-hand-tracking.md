@@ -165,7 +165,9 @@ Toolkit 3.4.1 for reference).
     **Fine corrections:** palm SD 3–9 mm, handle moved within about ±0.25. Big sweeps: 15–26 cm, full ±1.
   - **Pinch margin is thin:** while holding, the tip distance peaked at 3.0–3.7 cm against the 3.8 cm release
     threshold; one hold ended at exactly 3.8 cm. Not reported as an unintended drop by the player, but the margin is
-    under 1 cm. Candidate tweak (not done): open threshold ~4.5 cm (e.g. `OpenDistance` 0.06 m).
+    under 1 cm. **Adjusted afterwards:** `HandPinch` is now set by its two distances (close <3.1 cm unchanged, open
+    >4.5 cm, was 3.8 cm); tests updated first (EditMode 76/76, PlayMode 40 + 3 skipped); APK
+    `UnityProject/Builds/reference/LabyrinthXR-hands-spike1-pinch45.apk` installed; not yet played.
   - FPS 72–73/72 with hand-tracking frequency HIGH; no errors.
   - **Not run on the headset:** a hand returning to view with the pinch still closed (no tracking loss happened while
     holding), and picking up the controller *while* the hand holds the handle (the switch happened after a release).

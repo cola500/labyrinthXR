@@ -28,12 +28,13 @@ namespace Labyrinth.Game
         [Tooltip("Spike 1: the bare right hand may work the roll handle when the right controller is not tracked.")]
         [SerializeField] bool rightBareHand = true;
         [SerializeField] bool showHandMarkers = true;
-        [SerializeField] float pinchClosed = 0.015f;
-        [SerializeField] float pinchOpen = 0.050f;
+        [Tooltip("Thumb-tip to index-tip distance (m) below which a pinch closes / above which it opens.")]
+        [SerializeField] float pinchPress = 0.031f;
+        [SerializeField] float pinchRelease = 0.045f;
 
         readonly HandDriver left = new();
         readonly HandDriver right = new();
-        readonly HandPinch pinch = new();
+        readonly HandPinch pinch = new(); // HandGrip's default thresholds
         readonly XrHands hands = new();
         readonly HandLog log = new("right");
         readonly List<XRInputSubsystem> subsystems = new();
@@ -71,7 +72,7 @@ namespace Labyrinth.Game
                 s.trackingOriginUpdated += OnRecenter;
             }
             Application.onBeforeRender += UpdateHead;
-            Debug.Log($"[Hands] start: bare right hand={(rightBareHand ? "on" : "off")}, hand subsystem running={hands.Running}, pinch closes <{pinch.DistanceAt(right.Grip.PressThreshold) * 100f:0.0} cm, opens >{pinch.DistanceAt(right.Grip.ReleaseThreshold) * 100f:0.0} cm");
+            Debug.Log($"[Hands] start: bare right hand={(rightBareHand ? "on" : "off")}, hand subsystem running={hands.Running}, pinch closes <{pinchPress * 100f:0.0} cm, opens >{pinchRelease * 100f:0.0} cm");
         }
 
         void OnDestroy()
@@ -102,8 +103,8 @@ namespace Labyrinth.Game
         {
             UpdateHead();
             if (!placed) placed = TryPlace();
-            pinch.ClosedDistance = pinchClosed;
-            pinch.OpenDistance = pinchOpen;
+            pinch.PressDistance = pinchPress;
+            pinch.ReleaseDistance = pinchRelease;
 
             var (restartL, firstL) = Hand(XRNode.LeftHand, left, game.Pitch, game.PitchLever, leftHand, false);
             var (restartR, firstR) = Hand(XRNode.RightHand, right, game.Roll, game.RollLever, rightHand, rightBareHand);

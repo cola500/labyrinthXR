@@ -153,36 +153,41 @@ namespace Labyrinth.Tests
             Assert.AreEqual(InputSource.None, SourceChoice.Choose(false, true, handsEnabled: false));
         }
 
+        // The pinch is set by its two distances; strength is mapped so HandGrip's thresholds fall exactly on them.
         [Test]
-        public void PinchStrength_Endpoints_AndClamping()
+        public void PinchStrength_HitsHandGripThresholds_AtPressAndReleaseDistances()
         {
-            var p = new HandPinch { ClosedDistance = 0.015f, OpenDistance = 0.05f };
-            Assert.AreEqual(1f, p.Strength(0.005f));
-            Assert.AreEqual(1f, p.Strength(0.015f), 1e-5f);
-            Assert.AreEqual(0f, p.Strength(0.05f), 1e-5f);
+            var grip = new HandGrip();
+            var p = new HandPinch();
+            Assert.AreEqual(grip.PressThreshold, p.Strength(p.PressDistance), 1e-4f);
+            Assert.AreEqual(grip.ReleaseThreshold, p.Strength(p.ReleaseDistance), 1e-4f);
+            Assert.Greater(p.Strength(0f), 0.95f, "tips touching: (nearly) full strength");
             Assert.AreEqual(0f, p.Strength(0.12f));
-            Assert.AreEqual(0.5f, p.Strength(0.0325f), 1e-4f);
+            Assert.Greater(p.Strength(0.02f), p.Strength(0.03f), "closer tips = stronger pinch");
         }
 
-        // Thresholds as the player meets them: a pinch closes below ~3.1 cm tip distance, stays closed until ~3.8 cm.
+        // Thresholds as the player meets them (Spike 1 headset: holds peaked at 3.7 cm, so release moved from 3.8 to
+        // 4.5 cm): a pinch closes below 3.1 cm and stays closed until 4.5 cm.
         [Test]
-        public void PinchThroughHandGrip_ClosesAndOpensWithHysteresis()
+        public void PinchThroughHandGrip_ClosesAt31_OpensAt45()
         {
             var p = new HandPinch();
             var lever = new Lever();
             var hand = new HandGrip();
-            Assert.AreEqual(0.0308f, p.DistanceAt(hand.PressThreshold), 1e-4f);
-            Assert.AreEqual(0.0378f, p.DistanceAt(hand.ReleaseThreshold), 1e-4f);
+            Assert.AreEqual(0.031f, p.PressDistance, 1e-5f);
+            Assert.AreEqual(0.045f, p.ReleaseDistance, 1e-5f);
 
             bool Step(float tips) => hand.Update(lever, InputSource.Hand, p.Strength(tips), 0.02f, 0f);
             Step(0.07f);
             Step(0.033f);
             Assert.IsFalse(lever.Held, "3.3 cm: not yet a pinch");
-            Assert.IsTrue(Step(0.029f), "2.9 cm: pinch grabs");
-            Step(0.036f);
-            Assert.IsTrue(lever.Held, "3.6 cm: inside the hysteresis band, still held");
-            Step(0.040f);
-            Assert.IsFalse(lever.Held, "4.0 cm: opened, released");
+            Assert.IsTrue(Step(0.030f), "3.0 cm: pinch grabs");
+            Step(0.037f);
+            Assert.IsTrue(lever.Held, "3.7 cm (the headset's peak while holding): still held");
+            Step(0.044f);
+            Assert.IsTrue(lever.Held, "4.4 cm: still held");
+            Step(0.046f);
+            Assert.IsFalse(lever.Held, "4.6 cm: opened, released");
         }
 
         // Pinch jitter around the press threshold must not grab twice or flicker the grab.
@@ -194,7 +199,7 @@ namespace Labyrinth.Tests
             var hand = new HandGrip();
             var grabs = 0;
             hand.Update(lever, InputSource.Hand, 0f, 0.02f, 0f);
-            foreach (var d in new[] { 0.029f, 0.032f, 0.030f, 0.034f, 0.031f, 0.0365f, 0.030f })
+            foreach (var d in new[] { 0.029f, 0.032f, 0.030f, 0.037f, 0.031f, 0.0435f, 0.030f })
             {
                 if (hand.Update(lever, InputSource.Hand, p.Strength(d), 0.02f, 0f)) grabs++;
                 Assert.IsTrue(lever.Held, $"dropped at {d}");

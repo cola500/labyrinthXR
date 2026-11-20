@@ -73,7 +73,7 @@ namespace Labyrinth.Tests
             Assert.AreEqual(0f, g.Pitch.Value, "the pitch handle is untouched");
 
             var held = g.Roll.Value;
-            hand.Tips = 0.045f;
+            hand.Tips = 0.05f;
             Step();
             Assert.IsFalse(g.Roll.Held, "opening the pinch releases");
             MoveRight(0.03f, 10);
@@ -92,7 +92,7 @@ namespace Labyrinth.Tests
             {
                 var j = g.transform.right * ((float)rng.NextDouble() - 0.5f) * 0.002f; // +-1 mm
                 hand.Move(j);
-                hand.Tips = 0.022f + (float)rng.NextDouble() * 0.012f; // 2.2..3.4 cm: inside the closed band
+                hand.Tips = 0.022f + (float)rng.NextDouble() * 0.020f; // 2.2..4.2 cm: inside the closed band
                 Step();
                 Assert.IsTrue(g.Roll.Held, $"dropped at frame {i}, tips {hand.Tips}");
                 hand.Move(-j);

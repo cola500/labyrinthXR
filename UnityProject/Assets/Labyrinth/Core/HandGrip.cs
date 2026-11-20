@@ -63,23 +63,30 @@ namespace Labyrinth.Core
             : InputSource.None;
     }
 
-    // Pinch strength 0..1 from the thumb-tip to index-tip distance (joint centres, metres): 1 at or below
-    // ClosedDistance, 0 at or above OpenDistance. HandGrip's thresholds give the hysteresis: with the defaults a pinch
-    // closes below ~3.1 cm and opens above ~3.8 cm.
+    // Pinch strength 0..1 from the thumb-tip to index-tip distance (joint centres, metres), set by the two distances the
+    // player meets: the pinch closes below PressDistance and opens above ReleaseDistance. Strength is linear in the
+    // distance and placed so HandGrip's PressThreshold/ReleaseThreshold fall exactly on those distances; HandGrip keeps
+    // the hysteresis. Defaults from the Spike 1 headset run: grabs happened at 1.0-3.1 cm, holds peaked at 3.7 cm, so
+    // 3.1 cm to close and 4.5 cm to open.
     public sealed class HandPinch
     {
-        public float ClosedDistance = 0.015f;
-        public float OpenDistance = 0.050f;
+        public float PressDistance = 0.031f;
+        public float ReleaseDistance = 0.045f;
+        readonly float pressThreshold, releaseThreshold;
+
+        public HandPinch(float pressThreshold = 0.55f, float releaseThreshold = 0.35f)
+        {
+            this.pressThreshold = pressThreshold;
+            this.releaseThreshold = releaseThreshold;
+        }
 
         public float Strength(float tipDistance)
         {
-            var span = OpenDistance - ClosedDistance;
-            if (span <= 1e-5f) return tipDistance <= ClosedDistance ? 1f : 0f;
-            var t = (OpenDistance - tipDistance) / span;
-            return t < 0f ? 0f : t > 1f ? 1f : t;
+            var span = ReleaseDistance - PressDistance;
+            if (span <= 1e-5f) return tipDistance < PressDistance ? 1f : 0f;
+            var perMetre = (pressThreshold - releaseThreshold) / span;
+            var s = pressThreshold - (tipDistance - PressDistance) * perMetre;
+            return s < 0f ? 0f : s > 1f ? 1f : s;
         }
-
-        // The tip distance at which a given strength is reached (for logs and tests).
-        public float DistanceAt(float strength) => OpenDistance - strength * (OpenDistance - ClosedDistance);
     }
 }
