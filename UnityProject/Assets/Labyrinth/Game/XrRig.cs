@@ -1,7 +1,8 @@
 // VR input for Quest Touch controllers through UnityEngine.XR.InputDevices (as in Lilla fruktståndet and CampfireVR:
 // no XR Interaction Toolkit, no Input System). The left hand works the pitch handle, the right hand the roll handle,
 // each through its own HandGrip, so both work at the same time and neither can take the other's handle.
-// A/X restarts. On start and after a recenter, the labyrinth is placed in front of the player (yaw only, floor level).
+// A/X restarts (the current level; after Level 5, from Level 1). Holding B/Y for HoldToFirstLevel seconds goes back
+// to Level 1 (held, so a stray press never throws away progress). On start and after a recenter, the labyrinth is placed in front of the player (yaw only, floor level).
 // Lost focus/pause releases both handles (the board keeps its tilt, like a real labyrinth).
 using System.Collections.Generic;
 using Labyrinth.Core;
@@ -20,12 +21,14 @@ namespace Labyrinth.Game
         [Tooltip("Horizontal distance from the eyes to the board's centre when the labyrinth is placed.")]
         [SerializeField] float boardDistance = 0.80f;
         [SerializeField] float grabRadius = 0.10f;
+        [SerializeField] float holdToFirstLevel = 1.5f;
 
         readonly HandGrip left = new();
         readonly HandGrip right = new();
         readonly List<XRInputSubsystem> subsystems = new();
         Transform leftHand, rightHand;
         bool placed, primaryWasDown;
+        float secondaryHeld;
 
         public void Wire(LabyrinthGame g, Camera camera, Material hands)
         {
@@ -84,15 +87,21 @@ namespace Labyrinth.Game
             UpdateHead();
             if (!placed) placed = TryPlace();
 
-            var restart = false;
-            restart |= Hand(XRNode.LeftHand, left, game.Pitch, game.PitchLever, leftHand);
-            restart |= Hand(XRNode.RightHand, right, game.Roll, game.RollLever, rightHand);
+            var (restartL, firstL) = Hand(XRNode.LeftHand, left, game.Pitch, game.PitchLever, leftHand);
+            var (restartR, firstR) = Hand(XRNode.RightHand, right, game.Roll, game.RollLever, rightHand);
+            var restart = restartL || restartR;
             if (restart && !primaryWasDown) game.Restart();
             primaryWasDown = restart;
+            secondaryHeld = firstL || firstR ? secondaryHeld + Time.deltaTime : 0f;
+            if (secondaryHeld >= holdToFirstLevel)
+            {
+                secondaryHeld = float.NegativeInfinity; // once per hold
+                game.RestartFromFirstLevel();
+            }
         }
 
-        // Updates one hand; returns whether its primary button (X or A) is down.
-        bool Hand(XRNode node, HandGrip grip, Lever lever, LeverView view, Transform visual)
+        // Updates one hand; returns whether its primary (X/A) and secondary (Y/B) buttons are down.
+        (bool primary, bool secondary) Hand(XRNode node, HandGrip grip, Lever lever, LeverView view, Transform visual)
         {
             var d = InputDevices.GetDeviceAtXRNode(node);
             var p = Vector3.zero;
@@ -102,6 +111,7 @@ namespace Labyrinth.Game
                           && d.TryGetFeatureValue(CommonUsages.deviceRotation, out r);
             d.TryGetFeatureValue(CommonUsages.grip, out var gripValue);
             d.TryGetFeatureValue(CommonUsages.primaryButton, out var primary);
+            d.TryGetFeatureValue(CommonUsages.secondaryButton, out var secondary);
 
             var point = transform.TransformPoint(p + r * handOffset);
             visual.gameObject.SetActive(tracked);
@@ -118,7 +128,7 @@ namespace Labyrinth.Game
             }
             view.ShowState(grip.Hover, lever.Held);
             visual.localScale = Vector3.one * (lever.Held ? 0.040f : 0.048f);
-            return tracked && primary;
+            return (tracked && primary, tracked && secondary);
         }
 
         void UpdateHead()

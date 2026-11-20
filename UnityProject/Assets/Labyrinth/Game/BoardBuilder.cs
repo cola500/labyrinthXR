@@ -1,5 +1,5 @@
-// Builds the labyrinth under a root transform from a MazeLayout: the tilting board (floor with holes, walls, rim,
-// start, goal, route line), the steel ball, the fixed frame with its catch tray, the table and the two handles.
+// Builds the labyrinth under a root transform: the tilting board with its rim and the first level's maze (MazeBuilder),
+// the steel ball, the fixed frame with its catch tray, the table, the two handles and the level plaque.
 // Root space: floor level y = 0, the player stands on -z looking towards +z, the board's top surface at SurfaceHeight.
 // SceneSetup runs this in the editor and saves the result in the scene (the generated meshes become assets).
 using System.Collections.Generic;
@@ -13,6 +13,12 @@ namespace Labyrinth.Game
         public Material BoardWood, WallWood, FrameWood, TableWood, Felt, HoleDark, Steel, Goal, GoalRing, StartMark, Line, Brass, Knob;
         public PhysicsMaterial BallPhysics, BoardPhysics;
         public Font Font;
+
+        public MazeMaterials Maze() => new()
+        {
+            BoardWood = BoardWood, HoleDark = HoleDark, WallWood = WallWood, Goal = Goal, GoalRing = GoalRing,
+            StartMark = StartMark, Line = Line, Wood = BoardPhysics,
+        };
     }
 
     public static class BoardBuilder
@@ -42,32 +48,11 @@ namespace Labyrinth.Game
             boardBody.isKinematic = true;
             boardBody.interpolation = RigidbodyInterpolation.Interpolate;
 
-            var (visual, collider) = FloorMesh.Build(m);
-            GeneratedMeshes.Add(visual);
-            GeneratedMeshes.Add(collider);
-            var floor = new GameObject("Floor");
-            floor.transform.SetParent(board, false);
-            floor.AddComponent<MeshFilter>().sharedMesh = visual;
-            floor.AddComponent<MeshRenderer>().sharedMaterials = new[] { mat.BoardWood, mat.HoleDark };
-            var mc = floor.AddComponent<MeshCollider>();
-            mc.sharedMesh = collider;
-            mc.sharedMaterial = mat.BoardPhysics;
-
-            var walls = new GameObject("Walls").transform;
+            var mazeMat = mat.Maze();
+            var maze = MazeBuilder.Build(board, m, mazeMat);
+            GeneratedMeshes.AddRange(maze.GeneratedMeshes);
+            var walls = new GameObject("Rim").transform; // the board's own rim: the same for every level
             walls.SetParent(board, false);
-            var i = 0;
-            foreach (var w in m.AllWalls())
-            {
-                var a = m.ToBoard(w.A);
-                var b = m.ToBoard(w.B);
-                var along = b - a;
-                var len = along.magnitude + m.WallThickness;
-                var horizontal = Mathf.Abs(along.x) > Mathf.Abs(along.z);
-                var size = horizontal
-                    ? new Vector3(len, m.WallHeight + 0.003f, m.WallThickness)
-                    : new Vector3(m.WallThickness, m.WallHeight + 0.003f, len);
-                Box($"Wall{i++}", walls, (a + b) / 2 + Vector3.up * (m.WallHeight / 2 - 0.0015f), size, mat.WallWood, mat.BoardPhysics);
-            }
             // A sturdier outer rim that also hides the floor's edge.
             const float rim = 0.026f, rimTop = 0.045f, rimBottom = -0.03f;
             var rx = m.Width / 2 + m.WallThickness / 2 + rim / 2;
@@ -78,21 +63,6 @@ namespace Labyrinth.Game
             Box("RimFar", walls, new Vector3(0, ry, rz), new Vector3(2 * rx + rim, rh, rim), mat.WallWood, mat.BoardPhysics);
             Box("RimLeft", walls, new Vector3(-rx, ry, 0), new Vector3(rim, rh, 2 * rz - rim), mat.WallWood, mat.BoardPhysics);
             Box("RimRight", walls, new Vector3(rx, ry, 0), new Vector3(rim, rh, 2 * rz - rim), mat.WallWood, mat.BoardPhysics);
-
-            // Markings: start, goal and the route line (no colliders; the ball rolls over them).
-            var marks = new GameObject("Markings").transform;
-            marks.SetParent(board, false);
-            Disc("Start", marks, m.ToBoard(m.Start), 0.036f, 0.0007f, mat.StartMark);
-            Disc("GoalRing", marks, m.ToBoard(m.Goal), m.GoalRadius + 0.018f, 0.0006f, mat.GoalRing);
-            var goal = Disc("Goal", marks, m.ToBoard(m.Goal), m.GoalRadius, 0.0009f, mat.Goal);
-            for (var k = 0; k + 1 < m.Route.Count; k++)
-            {
-                var a = m.ToBoard(m.Route[k]);
-                var b = m.ToBoard(m.Route[k + 1]);
-                var seg = Box($"Line{k}", marks, (a + b) / 2 + Vector3.up * 0.0003f, new Vector3(0.006f, 0.0006f, (b - a).magnitude), mat.Line, null);
-                seg.localRotation = Quaternion.LookRotation(b - a);
-                if (k > 0) Disc($"Joint{k}", marks, a, 0.003f, 0.0006f, mat.Line);
-            }
 
             // --- the steel ball ----------------------------------------------------------------------------------
             var ballGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -142,9 +112,9 @@ namespace Labyrinth.Game
             var pitch = Lever("PitchHandle", root, new Vector3(-LeverSpacing, h, front), Vector3.forward, mat);
             var roll = Lever("RollHandle", root, new Vector3(LeverSpacing, h, front), Vector3.right, mat);
 
-            game.Wire(boardBody, ball, pitch, roll, h);
+            game.Wire(boardBody, ball, pitch, roll, h, mazeMat, maze.Root, maze.Goal);
             var feedback = root.gameObject.AddComponent<LabyrinthFeedback>();
-            feedback.Wire(game, Message(root, m, mat), goal.GetComponent<Renderer>(), root.gameObject.AddComponent<AudioSource>());
+            feedback.Wire(game, Message(root, m, mat), Plaque(root, front, mat), root.gameObject.AddComponent<AudioSource>());
             root.gameObject.AddComponent<DesktopInput>();
             return game;
         }
@@ -188,6 +158,28 @@ namespace Labyrinth.Game
             return text;
         }
 
+        // A small walnut plaque on the frame's front edge, between the handles, tilted towards the player: the level.
+        static TextMesh Plaque(Transform root, float frontZ, BoardMaterials mat)
+        {
+            var plaque = new GameObject("LevelPlaque").transform;
+            plaque.SetParent(root, false);
+            plaque.localPosition = new Vector3(0, SurfaceHeight + FrameTop - 0.012f, frontZ - 0.012f);
+            plaque.localRotation = Quaternion.Euler(35f, 0f, 0f); // faces up-and-back, towards a standing player
+            Box("Board", plaque, Vector3.zero, new Vector3(0.48f, 0.055f, 0.012f), mat.FrameWood, null);
+            var go = new GameObject("Text");
+            go.transform.SetParent(plaque, false);
+            go.transform.localPosition = new Vector3(0, 0, -0.0065f);
+            var text = go.AddComponent<TextMesh>();
+            text.font = mat.Font;
+            text.fontSize = 64;
+            text.characterSize = 0.0036f;
+            text.anchor = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignment.Center;
+            text.color = new Color(1.0f, 0.88f, 0.62f); // cream lettering on dark walnut (dark text on light wood came out faint)
+            go.GetComponent<MeshRenderer>().sharedMaterial = mat.Font != null ? mat.Font.material : null;
+            return text;
+        }
+
         public static Transform Box(string name, Transform parent, Vector3 pos, Vector3 size, Material mat, PhysicsMaterial phys)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -202,7 +194,7 @@ namespace Labyrinth.Game
             return go.transform;
         }
 
-        static Transform Disc(string name, Transform parent, Vector3 pos, float radius, float height, Material mat) =>
+        public static Transform Disc(string name, Transform parent, Vector3 pos, float radius, float height, Material mat) =>
             Cylinder(name, parent, pos + Vector3.up * (height / 2), radius, height, Vector3.up, mat);
 
         static Transform Cylinder(string name, Transform parent, Vector3 pos, float radius, float length, Vector3 axis, Material mat)

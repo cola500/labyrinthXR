@@ -1,5 +1,6 @@
 // Development adapter without a headset: W/S (or Up/Down) deflect the pitch handle, A/D (or Left/Right) the roll
-// handle while held (released keys ease back to neutral), R or Space restarts. Inactive while an XR device is active
+// handle while held (released keys ease back to neutral), R or Space restarts (the level; after Level 5, from Level 1),
+// 1 or Backspace goes back to Level 1. Inactive while an XR device is active
 // and in batch mode (tests drive the handles directly).
 using Labyrinth.Core;
 using UnityEngine;
@@ -26,6 +27,7 @@ namespace Labyrinth.Game
             game.Roll.Set(Mathf.MoveTowards(game.Roll.Value, r, rate * Time.deltaTime));
             if (p != 0f || r != 0f) game.NoteGrab();
             if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.Space)) game.Restart();
+            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Backspace)) game.RestartFromFirstLevel();
         }
 
         static float Axis(KeyCode pos, KeyCode pos2, KeyCode neg, KeyCode neg2) =>

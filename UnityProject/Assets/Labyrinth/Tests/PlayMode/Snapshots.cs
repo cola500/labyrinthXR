@@ -95,6 +95,59 @@ namespace Labyrinth.Tests
             Shot("13-won-goal", goal + g.transform.TransformDirection(new Vector3(0.15f, 0.3f, -0.3f)), goal, 45);
         }
 
+        // FEATURE-levels: every level as the game loads it (overview + player view), the plaque, the level-complete
+        // message, the transition, and the final completion state.
+        [UnityTest]
+        public IEnumerator Snapshots_Levels()
+        {
+            var h = g.SurfaceHeight;
+            for (var i = 0; i < Levels.Count; i++)
+            {
+                g.LoadLevel(i);
+                g.Advance(0.3f);
+                yield return null; // plaque, message and handles update
+                Shot($"L{i + 1}-a-overview", W(0, 2.45f, -0.05f), W(0, h, 0.0f), 40);
+                Shot($"L{i + 1}-b-player-view", W(0, 1.62f, -0.95f), W(0, 0.92f, 0.05f), 60);
+            }
+            g.LoadLevel(2);
+            g.Advance(0.3f);
+            yield return null;
+            var plaque = GameObject.Find("LevelPlaque").transform;
+            Shot("L-plaque-closeup", plaque.position + g.transform.TransformDirection(new Vector3(0.1f, 0.35f, -0.45f)), plaque.position, 45);
+
+            // Level complete on Level 1, then the transition to Level 2.
+            g.LoadLevel(0);
+            var goal = g.Layout.Goal;
+            g.PlaceBall(goal + new Vector2(0.45f, 0f));
+            g.Roll.Set(-0.4f);
+            for (var t = 0f; t < 3f && !g.Won; t += Time.fixedDeltaTime) g.Advance(Time.fixedDeltaTime);
+            g.Roll.Set(0f);
+            g.Advance(0.5f);
+            yield return null;
+            Assert.IsTrue(g.Won);
+            Shot("L1-c-level-complete", W(0, 1.62f, -0.95f), W(0, 0.92f, 0.05f), 60);
+            g.Advance(g.Campaign.AdvanceSeconds);
+            yield return null;
+            Assert.AreEqual(2, g.Layout.Number);
+            Shot("L2-c-after-transition", W(0, 1.62f, -0.95f), W(0, 0.92f, 0.05f), 60);
+
+            // Final completion on Level 5.
+            g.LoadLevel(4);
+            goal = g.Layout.Goal;
+            var before = g.Layout.Route[g.Layout.Route.Count - 2];
+            var dir = (goal - before).normalized;
+            g.PlaceBall(goal - dir * 0.45f);
+            g.Pitch.Set(dir.y * 0.4f);
+            g.Roll.Set(dir.x * 0.4f);
+            for (var t = 0f; t < 3f && !g.Won; t += Time.fixedDeltaTime) g.Advance(Time.fixedDeltaTime);
+            g.Pitch.Set(0f);
+            g.Roll.Set(0f);
+            g.Advance(1f);
+            yield return null;
+            Assert.IsTrue(g.CampaignComplete);
+            Shot("L5-c-campaign-complete", W(0, 1.62f, -0.95f), W(0, 0.92f, 0.05f), 60);
+        }
+
         void Shot(string name, Vector3 eye, Vector3 look, float fov)
         {
             const int w = 1600, h = 1200;

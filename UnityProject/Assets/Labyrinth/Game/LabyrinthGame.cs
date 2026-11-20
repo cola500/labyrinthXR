@@ -2,6 +2,8 @@
 // with MoveRotation every physics step, and the steel ball is an ordinary dynamic Rigidbody: it is never moved by input,
 // only by gravity and its contacts with the tilting board. Round decides falls, resets and the goal from the ball's
 // position in board space. VR (XrHands), the desktop keys (DesktopInput) and the tests all go through Pitch/Roll.
+// Levels: Campaign holds the level index; LoadLevel swaps only the maze under the board (MazeBuilder), so every level
+// shares the same ball, board, handles and physics. A won level advances after Campaign.AdvanceSeconds.
 // Board convention: Pitch +1 = handle pushed away from the player = far edge down; Roll +1 = handle pushed right =
 // right edge down. So the ball rolls the way the handle is pushed.
 using System;
@@ -35,8 +37,13 @@ namespace Labyrinth.Game
         [SerializeField] LeverView pitchLever;
         [SerializeField] LeverView rollLever;
         [SerializeField] float surfaceHeight = 0.95f;
+        [SerializeField] MazeMaterials mazeMaterials;
+        [Tooltip("The maze currently under the board; the scene holds Level 1, built by SceneSetup.")]
+        [SerializeField] GameObject maze;
+        [SerializeField] Renderer goal;
 
-        public readonly MazeLayout Layout = MazeLayout.First();
+        public MazeLayout Layout { get; private set; } = Levels.Create(0);
+        public readonly Campaign Campaign = new();
         public readonly Lever Pitch = new();
         public readonly Lever Roll = new();
         public readonly TiltAxis PitchAxis = new();
@@ -44,6 +51,7 @@ namespace Labyrinth.Game
         public readonly Round Round = new();
 
         public event Action<RoundEvent> RoundChanged;
+        public event Action<int> LevelLoaded;
 
         public Rigidbody Board => board;
         public Rigidbody Ball => ball;
@@ -51,6 +59,12 @@ namespace Labyrinth.Game
         public LeverView RollLever => rollLever;
         public float SurfaceHeight => surfaceHeight;
         public bool EverGrabbed { get; private set; }
+        public GameObject Maze => maze;
+        public Renderer GoalRenderer => goal;
+        public bool Won => Round.State == RoundState.Won;
+        // All five levels done: the final completion state, until a restart from Level 1.
+        public bool CampaignComplete => Campaign.Completed(Won);
+        readonly System.Collections.Generic.List<Mesh> runtimeMeshes = new();
 
         // The ball's centre in board space (metres; y = 0 is the floor's top surface).
         public Vector3 BallOnBoard => board.transform.InverseTransformPoint(ball.position);
@@ -73,8 +87,12 @@ namespace Labyrinth.Game
             }
         }
 
-        public void Wire(Rigidbody boardBody, Rigidbody ballBody, LeverView pitch, LeverView roll, float surface)
+        public void Wire(Rigidbody boardBody, Rigidbody ballBody, LeverView pitch, LeverView roll, float surface,
+                         MazeMaterials materials, GameObject mazeRoot, Renderer goalRenderer)
         {
+            mazeMaterials = materials;
+            maze = mazeRoot;
+            goal = goalRenderer;
             board = boardBody;
             ball = ballBody;
             pitchLever = pitch;
@@ -139,8 +157,9 @@ namespace Labyrinth.Game
 
             if (Round.State == RoundState.Won)
             {
-                // Settled in the goal: the ball rides along with the board.
+                // Settled in the goal: the ball rides along with the board, until the next level is due.
                 ball.MovePosition(board.transform.TransformPoint(Layout.ToBoard(Layout.Goal) + Vector3.up * Layout.BallRadius));
+                if (Campaign.Tick(dt, true)) LoadLevel(Campaign.Index);
                 return;
             }
             var e = Round.Tick(dt, BallFell, BallInGoal);
@@ -157,10 +176,44 @@ namespace Labyrinth.Game
         public Quaternion BoardRotation(float pitchDegrees, float rollDegrees) =>
             transform.rotation * Quaternion.Euler(pitchDegrees, 0f, -rollDegrees);
 
+        // A/X, R: after the last level, start again from Level 1; otherwise a fresh attempt at the current level.
         public void Restart()
         {
+            if (CampaignComplete)
+            {
+                LoadLevel(0);
+                return;
+            }
+            Round.Restart();
+            Campaign.GoTo(Campaign.Index);
+            ResetBall();
+            RoundChanged?.Invoke(RoundEvent.ResetBall);
+        }
+
+        public void RestartFromFirstLevel() => LoadLevel(0);
+
+        // Replaces the maze with level `index` (0-based) and puts the ball on its start. The old maze is deactivated
+        // first, which removes its colliders from the physics scene at once (Destroy only happens at the end of the
+        // frame), and the meshes generated for it are destroyed with it. Ball, board, handles and physics stay as they are.
+        public void LoadLevel(int index)
+        {
+            Campaign.GoTo(index);
+            Layout = Levels.Create(Campaign.Index);
+            if (maze != null)
+            {
+                maze.SetActive(false);
+                maze.transform.SetParent(null, false);
+                Destroy(maze);
+            }
+            foreach (var mesh in runtimeMeshes) Destroy(mesh);
+            runtimeMeshes.Clear();
+            var view = MazeBuilder.Build(board.transform, Layout, mazeMaterials);
+            maze = view.Root;
+            goal = view.Goal;
+            runtimeMeshes.AddRange(view.GeneratedMeshes);
             Round.Restart();
             ResetBall();
+            LevelLoaded?.Invoke(Campaign.Index);
             RoundChanged?.Invoke(RoundEvent.ResetBall);
         }
 

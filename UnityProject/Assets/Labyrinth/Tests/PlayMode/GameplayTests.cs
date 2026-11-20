@@ -1,4 +1,5 @@
-// Gameplay in the real scene with real physics (script-stepped). Acceptance scenarios A-E of the epic.
+// Gameplay in the real scene with real physics (script-stepped), on the classic maze (Level 2). Acceptance scenarios
+// A-E of EPIC-001; the five-level behaviour is in LevelTests.
 using System.Collections;
 using Labyrinth.Core;
 using Labyrinth.Game;
@@ -16,6 +17,7 @@ namespace Labyrinth.Tests
         public IEnumerator Load()
         {
             yield return SceneLoad.Fresh(x => g = x);
+            g.LoadLevel(1); // these tests use the classic maze (Level 2: Finding Balance) and its coordinates
             g.Pitch.ResetToNeutral();
             g.Roll.ResetToNeutral();
         }
@@ -152,19 +154,6 @@ namespace Labyrinth.Tests
             Assert.AreEqual(g.Layout.BallRadius, g.BallOnBoard.y, 0.004f, "back on the floor after reset");
         }
 
-        // Every hole of the layout swallows the ball (the visual review once found holes missing from the mesh).
-        [Test]
-        public void EveryHole_SwallowsTheBall()
-        {
-            for (var i = 0; i < g.Layout.Holes.Count; i++)
-            {
-                g.Restart();
-                g.PlaceBall(g.Layout.Holes[i] + new Vector2(0.05f, 0.05f));
-                g.Advance(0.6f);
-                Assert.AreEqual(RoundState.Falling, g.Round.State, $"hole {i} at {g.Layout.Holes[i]}: ball at {g.Layout.ToCell(g.BallOnBoard)}");
-            }
-        }
-
         // The real frame loop (FixedUpdate physics, Update, LateUpdate) for a few seconds with a level board: the
         // labyrinth stays where it was built and the ball rests on the start. Advance() bypasses Update, so this
         // catches per-frame side effects (seen once: a sound source on the root dragged the whole labyrinth along).
@@ -247,22 +236,5 @@ namespace Labyrinth.Tests
             Assert.AreEqual(0f, g.Pitch.Value, "the other handle is untouched");
         }
 
-        // The maze can be completed by handle movements alone (navigable, physically possible).
-        [Test]
-        public void Autopilot_CompletesTheMaze_WithHandlesOnly()
-        {
-            var pilot = new Autopilot(g);
-            var t = 0f;
-            while (g.Round.State != RoundState.Won && t < 180f)
-            {
-                pilot.Step();
-                g.Advance(Time.fixedDeltaTime);
-                t += Time.fixedDeltaTime;
-                if (g.Round.State == RoundState.Falling)
-                    Assert.Fail($"fell at waypoint {pilot.Waypoint}, ball {g.Layout.ToCell(g.BallOnBoard)}, t={t:0.0}s");
-            }
-            Assert.AreEqual(RoundState.Won, g.Round.State, $"stuck at waypoint {pilot.Waypoint}, ball {g.Layout.ToCell(g.BallOnBoard)}");
-            Debug.Log($"[autopilot] completed in {g.Round.WonSeconds:0.0} s, {g.Round.Falls} falls");
-        }
     }
 }

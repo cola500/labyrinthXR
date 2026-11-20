@@ -43,7 +43,7 @@ namespace Labyrinth.EditorTools
             Room(mat);
 
             var root = new GameObject("Labyrinth").transform;
-            var game = BoardBuilder.Build(root, MazeLayout.First(), mat);
+            var game = BoardBuilder.Build(root, Levels.Create(0), mat);
             foreach (var mesh in BoardBuilder.GeneratedMeshes) AssetDatabase.CreateAsset(mesh, $"{Gen}/{mesh.name}.asset");
 
             // The lamp above the table: the key light, with soft shadows (one spot = one shadow map, cheap on Quest).

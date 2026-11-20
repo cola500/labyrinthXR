@@ -9,9 +9,9 @@ namespace Labyrinth.Tests
 {
     public class FloorMeshTests
     {
-        static readonly MazeLayout M = MazeLayout.First();
+        static readonly MazeLayout M = Levels.Create(1); // the classic maze (closely spaced holes)
 
-        static float TopArea(Mesh mesh, int submesh, out bool allUp)
+        public static float TopArea(Mesh mesh, int submesh, out bool allUp)
         {
             var v = mesh.vertices;
             var t = mesh.GetTriangles(submesh);

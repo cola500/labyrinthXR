@@ -1,4 +1,4 @@
-// Simple feedback: a message above the board, the goal disc lighting up, a few synthesised sounds (no audio files),
+// Simple feedback: the level plaque on the frame, a message above the board, the goal disc lighting up, a few synthesised sounds (no audio files),
 // and a soft rolling sound whose volume follows the ball's speed on the board.
 using Labyrinth.Core;
 using UnityEngine;
@@ -9,7 +9,7 @@ namespace Labyrinth.Game
     {
         [SerializeField] LabyrinthGame game;
         [SerializeField] TextMesh message;
-        [SerializeField] Renderer goal;
+        [SerializeField] TextMesh plaque;
         [SerializeField] AudioSource sfx;
         [SerializeField] Color goalIdle = new(0.20f, 0.45f, 0.22f);
         [SerializeField] Color goalWon = new(0.45f, 1.0f, 0.45f);
@@ -17,17 +17,19 @@ namespace Labyrinth.Game
 
         public string Hint = "Grab the handles with the grip buttons\nLeft handle: tilt forward and back\nRight handle: tilt left and right";
         public string Text => message != null ? message.text : "";
+        public string PlaqueText => plaque != null ? plaque.text : "";
+        public static string LevelLabel(MazeLayout m) => $"Level {m.Number} / {Levels.Count} — {m.Name}";
 
         AudioClip plunk, chime, click;
         AudioSource roll;
         MaterialPropertyBlock block;
         float fellAt = -1f;
 
-        public void Wire(LabyrinthGame g, TextMesh text, Renderer goalRenderer, AudioSource source)
+        public void Wire(LabyrinthGame g, TextMesh text, TextMesh levelPlaque, AudioSource source)
         {
             game = g;
             message = text;
-            goal = goalRenderer;
+            plaque = levelPlaque;
             sfx = source;
         }
 
@@ -47,24 +49,31 @@ namespace Labyrinth.Game
             roll.spatialBlend = 0.7f;
             roll.playOnAwake = false;
             game.RoundChanged += OnRound;
+            game.LevelLoaded += OnLevel;
             SetGoal(false);
+            ShowLevel();
             // TextMesh + dynamic font: put every glyph in the atlas up front, and rebuild the text if the atlas is
             // rebuilt anyway (otherwise later words can come out with wrong glyphs, seen as stray italics).
             if (message.font != null)
             {
                 message.font.RequestCharactersInTexture(Glyphs, message.fontSize, FontStyle.Normal);
+                message.font.RequestCharactersInTexture(Glyphs, plaque != null ? plaque.fontSize : message.fontSize, FontStyle.Normal);
                 Font.textureRebuilt += OnFontRebuilt;
             }
         }
 
-        const string Glyphs = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~…";
+        const string Glyphs = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~…—";
 
         void OnFontRebuilt(Font f)
         {
             if (message == null || f != message.font) return;
-            var t = message.text;
-            message.text = "";
-            message.text = t;
+            foreach (var tm in new[] { message, plaque })
+            {
+                if (tm == null) continue;
+                var t = tm.text;
+                tm.text = "";
+                tm.text = t;
+            }
         }
 
         void Start()
@@ -75,11 +84,26 @@ namespace Labyrinth.Game
 
         void OnDestroy()
         {
-            if (game != null) game.RoundChanged -= OnRound;
+            if (game != null)
+            {
+                game.RoundChanged -= OnRound;
+                game.LevelLoaded -= OnLevel;
+            }
             Font.textureRebuilt -= OnFontRebuilt;
         }
 
         public void Grabbed() => sfx.PlayOneShot(click, 0.5f);
+
+        void OnLevel(int index)
+        {
+            ShowLevel();
+            SetGoal(false);
+        }
+
+        void ShowLevel()
+        {
+            if (plaque != null) plaque.text = LevelLabel(game.Layout);
+        }
 
         void OnRound(RoundEvent e)
         {
@@ -104,8 +128,10 @@ namespace Labyrinth.Game
             message.text = game.Round.State switch
             {
                 RoundState.Falling => "Oops! Back to the start…",
-                RoundState.Won => $"Goal!  {game.Round.WonSeconds:0} s" + (game.Round.Falls switch { 0 => "", 1 => ",  1 fall", var n => $",  {n} falls" })
-                                  + (DesktopInput.Active ? "\nPress R to play again" : "\nPress A or X to play again"),
+                RoundState.Won when game.CampaignComplete => "You mastered all five labyrinths!"
+                                  + (DesktopInput.Active ? "\nPress R to play again from Level 1" : "\nPress A or X to play again from Level 1"),
+                RoundState.Won => $"Level {game.Layout.Number} complete!  {game.Round.WonSeconds:0} s" + FallText()
+                                  + $"\nNext: {Levels.Create(game.Campaign.Index + 1).Name}",
                 _ => game.EverGrabbed ? "" : (DesktopInput.Active ? "W / S: tilt forward and back\nA / D: tilt left and right\nR: restart" : Hint),
             };
             if (game.Round.State == RoundState.Won)
@@ -123,10 +149,13 @@ namespace Labyrinth.Game
             roll.transform.position = game.Ball.position;
         }
 
+        string FallText() => game.Round.Falls switch { 0 => "", 1 => ",  1 fall", var n => $",  {n} falls" };
+
         void SetGoal(bool won) => SetGoalColor(won ? goalWon : goalIdle);
 
         void SetGoalColor(Color c)
         {
+            var goal = game.GoalRenderer;
             if (goal == null) return;
             block ??= new MaterialPropertyBlock();
             goal.GetPropertyBlock(block);

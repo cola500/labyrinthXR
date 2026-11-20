@@ -1,4 +1,4 @@
-// The maze as data. Authored on a grid of cells (x to the right, y away from the player, cell (0,0) at the near-left
+// One level's maze as data (the five levels are in Levels). Authored on a grid of cells (x to the right, y away from the player, cell (0,0) at the near-left
 // corner); ToBoard converts to board space: metres, origin at the board centre, x right, z away from the player, the
 // floor's top surface at y = 0. Walls are axis-aligned segments on grid lines (the outer rim is added by the builder);
 // holes, start and goal are points in cell units. Route is the intended line through the maze (drawn on the board
@@ -24,6 +24,9 @@ namespace Labyrinth.Core
         public float WallThickness = 0.016f;
         public float WallHeight = 0.035f;
         public float GoalRadius = 0.05f;      // the ball's centre within this distance of Goal = success
+
+        public int Number;                    // 1-based position in the campaign
+        public string Name = "";
 
         public readonly List<WallSegment> Walls = new();
         public readonly List<Vector2> Holes = new();
@@ -69,48 +72,6 @@ namespace Labyrinth.Core
             var ab = b - a;
             var t = ab.sqrMagnitude < 1e-9f ? 0f : Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
             return Vector2.Distance(p, a + t * ab);
-        }
-
-        // The first level: a four-lane serpentine. Lanes are two cells deep, so each hole sits on one side of its lane
-        // and the ball must weave past it; a hole in each turn punishes overshooting.
-        public static MazeLayout First()
-        {
-            var m = new MazeLayout { Start = new Vector2(0.6f, 1.0f), Goal = new Vector2(0.75f, 7.0f) };
-            // Lane separators with alternating gaps (right, left, right).
-            m.Walls.Add(new WallSegment(0, 2, 8, 2));
-            m.Walls.Add(new WallSegment(2, 4, 10, 4));
-            m.Walls.Add(new WallSegment(0, 6, 8, 6));
-            // Short baffles that narrow the lanes and make the turns deliberate.
-            m.Walls.Add(new WallSegment(6, 0, 6, 0.7f));
-            m.Walls.Add(new WallSegment(3, 4, 3, 4.7f));
-            m.Walls.Add(new WallSegment(5, 8, 5, 7.3f));
-
-            // Lane 0 (near, left to right)
-            m.Holes.Add(new Vector2(3.5f, 0.5f));
-            m.Holes.Add(new Vector2(5.0f, 1.5f));
-            m.Holes.Add(new Vector2(9.5f, 0.5f));
-            // Lane 1 (right to left)
-            m.Holes.Add(new Vector2(7.5f, 3.5f));
-            m.Holes.Add(new Vector2(4.5f, 2.5f));
-            m.Holes.Add(new Vector2(0.5f, 2.5f));
-            // Lane 2 (left to right)
-            m.Holes.Add(new Vector2(5.0f, 5.5f));
-            m.Holes.Add(new Vector2(7.0f, 4.5f));
-            // Lane 3 (right to left, to the goal)
-            m.Holes.Add(new Vector2(3.5f, 6.5f));
-
-            m.Route.AddRange(new[]
-            {
-                m.Start,
-                new Vector2(2.2f, 1.45f), new Vector2(4.2f, 1.4f), new Vector2(5.0f, 0.55f), new Vector2(6.0f, 1.25f),
-                new Vector2(7.3f, 1.0f), new Vector2(8.6f, 1.2f), new Vector2(8.8f, 2.5f),
-                new Vector2(6.5f, 2.55f), new Vector2(5.5f, 3.45f), new Vector2(2.5f, 3.45f), new Vector2(1.3f, 3.5f),
-                new Vector2(1.3f, 4.5f), new Vector2(3.0f, 5.35f), new Vector2(4.2f, 4.55f), new Vector2(5.2f, 4.55f),
-                new Vector2(6.2f, 5.35f), new Vector2(7.8f, 5.45f), new Vector2(8.9f, 5.6f), new Vector2(8.9f, 6.7f),
-                new Vector2(6.0f, 6.8f), new Vector2(4.8f, 6.75f), new Vector2(3.5f, 7.45f), new Vector2(2.2f, 7.1f),
-                m.Goal,
-            });
-            return m;
         }
     }
 }
