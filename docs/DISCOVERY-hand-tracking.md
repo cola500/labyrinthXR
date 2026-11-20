@@ -1,6 +1,6 @@
 # DISCOVERY — Hand tracking for LabyrinthXR
 
-Status: **Spike 0 done and verified on Quest 3 (OpenXR, controllers only). Spike 1 implemented and played on Quest 3 (right hand works the roll handle; two edge cases not yet run on the headset).**
+Status: **Spike 0 done and verified on Quest 3 (OpenXR, controllers only). Spike 1 done and verified on Quest 3 (bare right hand works the roll handle; fine control good).**
 Discovery was Read-only investigation on 2026-11-20 at commit `0f59e8f`; no
 packages installed, no project files changed. Implementation needs explicit approval (see §7).
 
@@ -167,11 +167,24 @@ Toolkit 3.4.1 for reference).
     threshold; one hold ended at exactly 3.8 cm. Not reported as an unintended drop by the player, but the margin is
     under 1 cm. **Adjusted afterwards:** `HandPinch` is now set by its two distances (close <3.1 cm unchanged, open
     >4.5 cm, was 3.8 cm); tests updated first (EditMode 76/76, PlayMode 40 + 3 skipped); APK
-    `UnityProject/Builds/reference/LabyrinthXR-hands-spike1-pinch45.apk` installed; not yet played.
+    `UnityProject/Builds/reference/LabyrinthXR-hands-spike1-pinch45.apk`. Played 09:52–09:54: player says the
+    release feels good; releases at 4.5–6.9 cm, tips peaked at 4.4 cm while held, no unintended drop; the handle
+    stayed put through ~30 short tracking blips at the edge of view.
   - FPS 72–73/72 with hand-tracking frequency HIGH; no errors.
-  - **Not run on the headset:** a hand returning to view with the pinch still closed (no tracking loss happened while
-    holding), and picking up the controller *while* the hand holds the handle (the switch happened after a release).
-    Both are covered only by the automated tests.
+  - **Edge cases (10:44–10:47, log + player):**
+    - *Tracking lost while held:* three times (10:44:14.9, 10:44:19.3, 10:44:23.7) `Hand -> None (released while
+      held)`; the handle stayed (-1.00 / -1.00 / +0.05) and did not jump on return or re-grab. The re-grab after
+      return came 0.9 s later; the code only allows it after one frame with the pinch open (>4.5 cm), but the log does
+      not show that frame, so whether the player opened deliberately or the runtime briefly reported an open hand on
+      re-acquisition is not known.
+    - *Source switch:* picking up the right controller: the pinch opens first (the hand has to open to take the
+      controller; 10:47:08.65 release, tips 6.3 cm), then Hand -> None -> Controller in 0.08 s, handle kept (-1.00);
+      the controller grabbed only on a fresh press (10:47:10.7) with no jump. Controller put down → Hand in 0.1 s,
+      handle kept. A switch *while the pinch is still closed* did not occur in practice; that path is covered only by
+      the automated tests.
+    - *Left controller picked up:* the Quest switched both hands to controllers, so the bare right hand stopped
+      (released while held, handle kept); the left controller cannot take the right handle (by design). Mixed hand +
+      controller play needs Meta's simultaneous hands-and-controllers extension: out of scope.
 
 ## 6. Verification plan
 
