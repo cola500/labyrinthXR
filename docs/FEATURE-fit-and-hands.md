@@ -112,3 +112,20 @@ spacing the level plaque no longer fits between the handle bases and moves onto 
   (and tracking loss), stick adjustments, reset (by which hand), and when an adjustment releases a held handle (with
   its value), so the next headset session can show these cases directly.
 - Tests 84 / 58 (+4 skipped renders); APK `UnityProject/Builds/reference/LabyrinthXR-fit-twohands-2.apk`.
+
+## Headset session 2 (Quest 3, 2026-11-20 11:26–11:28, wifi ADB; device log)
+- **Saved fit after an app restart:** `[Fit] loaded: table 62 cm, handles 30 cm apart` at start.
+- **Bare-hand fit:** the right hand dragged the table height 62 → 108, 95 → 110 and 110 → 61 cm (≈1.5–2 s per drag)
+  and the handle spacing 30 → 53 and 72 → 43 cm apart; **reset** by holding the button 1 s with the right hand.
+- **Adjustment while a handle is held:** 11:26:51 the left hand held the pitch handle when the right hand took a
+  handle base: "Hand adjustment released the pitch handle at -1.00"; no regrab by the still-pinched left hand.
+- **Tracking loss while held:** 11:27:54 the left controller lost tracking while holding (released, handle kept at
+  -0.90); the next grab only came with a fresh press (11:28:04).
+- Controllers worked both handles at the custom fit. Last fit 61 cm / 43 cm apart. No errors; no `CapsuleCollider`
+  lines, but no level change is visible in this log (levels were not logged), so the stripping fix is confirmed only
+  by the APK check so far.
+- **Log fix:** at 11:26:44 the right hand, still pinching the roll handle (dragged to its end stop), held the reset
+  button; the reset released the handle correctly but the hand log reported "grip opened, tips 1.3 cm". Hand logs now
+  skip releases made by a fit change (LabyrinthGame logs those), and level loads are logged (`[Level] loaded n/5`).
+- Tests 84 / 58 (+4 skipped renders); APK `UnityProject/Builds/reference/LabyrinthXR-fit-twohands-3.apk`.
+- **Not yet:** Viola.

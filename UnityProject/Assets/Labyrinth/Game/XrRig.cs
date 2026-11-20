@@ -186,7 +186,7 @@ namespace Labyrinth.Game
                 game.SaveFit();
             }
             if (step.Reset) game.ResetFit($"{hand} {source} (held the button {HandDriver.ResetSeconds:0.#} s)");
-            handLog?.Frame(source, previous, sample, step.GrabbedKnob, wasHeld, lever, view);
+            handLog?.Frame(source, previous, sample, step.GrabbedKnob, wasHeld, lever, view, releasedByFit: driver.Grip.Holding && !lever.Held);
 
             view.ShowState(driver.Grip.Hover, lever.Held);
             visual.gameObject.SetActive(source == InputSource.Controller);
@@ -288,12 +288,15 @@ namespace Labyrinth.Game
 
         public HandLog(string hand) => this.hand = hand;
 
-        public void Frame(InputSource source, InputSource previous, in HandSample s, bool grabbed, bool wasHeld, Lever lever, LeverView view)
+        // releasedByFit: the handle was let go by a fit change (reset, another hand's adjustment) while this hand still
+        // pinched; LabyrinthGame logs that release itself, so it is not reported as an opened grip here.
+        public void Frame(InputSource source, InputSource previous, in HandSample s, bool grabbed, bool wasHeld, Lever lever, LeverView view,
+                          bool releasedByFit = false)
         {
             if (source != previous) Debug.Log($"[Hands] {hand}: source {previous} -> {source}{(wasHeld ? " (released while held)" : "")}, handle {lever.Value:+0.00;-0.00}");
             if (grabbed)
                 Debug.Log($"[Hands] {hand}: grab by {source}, pinch-to-knob {Vector3.Distance(s.GrabPoint, view.Knob.position) * 100f:0.0} cm{(source == InputSource.Hand ? $", tips {s.TipDistance * 100f:0.0} cm" : "")}, handle {lever.Value:+0.00;-0.00}");
-            else if (wasHeld && !lever.Held && source == previous)
+            else if (wasHeld && !lever.Held && source == previous && !releasedByFit)
                 Debug.Log($"[Hands] {hand}: release by {source} (grip opened{(source == InputSource.Hand ? $", tips {s.TipDistance * 100f:0.0} cm" : "")}), handle {lever.Value:+0.00;-0.00}");
 
             if (source != InputSource.Hand || !lever.Held)

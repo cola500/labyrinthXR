@@ -360,6 +360,7 @@ namespace Labyrinth.Game
             runtimeMeshes.AddRange(view.GeneratedMeshes);
             Round.Restart();
             ResetBall();
+            Debug.Log($"[Level] loaded {Layout.Number}/{Levels.Count} {Layout.Name}");
             LevelLoaded?.Invoke(Campaign.Index);
             RoundChanged?.Invoke(RoundEvent.ResetBall);
         }
