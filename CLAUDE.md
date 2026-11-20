@@ -24,7 +24,7 @@ Unity 6000.4.7f1, built-in render pipeline. The project must not be open in the 
 scripts/labyrinth.sh test        # EditMode + PlayMode (batchmode, -nographics), watched; TEST_FILTER=<regex>, TEST_PLATFORMS=EditMode
 scripts/labyrinth.sh snapshots   # renders of the real scene (needs graphics) -> UnityProject/Logs/shots/*.png; inspect them
 scripts/labyrinth.sh scene       # regenerate Assets/Scenes/Labyrinth.unity + Assets/Labyrinth/Generated/ (SceneSetup)
-scripts/labyrinth.sh build       # Quest APK -> UnityProject/Builds/LabyrinthXR-quest.apk
+scripts/labyrinth.sh build       # Quest APK -> UnityProject/Builds/LabyrinthXR-quest.apk (fails if runtime types were stripped: Assets/link.xml)
 scripts/labyrinth.sh install | launch | log | devices   # adb (install -r only, never uninstall)
 ```
 

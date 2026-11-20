@@ -1,0 +1,12 @@
+<!-- Engine classes created only at runtime: MazeBuilder builds each level's maze with GameObject.CreatePrimitive
+     (Cylinder adds a CapsuleCollider, removed again right away), and no scene keeps a CapsuleCollider, so IL2CPP
+     stripping dropped the class and every level change logged "class 'CapsuleCollider' doesn't exist".
+     scripts/labyrinth.sh build checks the APK for these types. -->
+<linker>
+  <assembly fullname="UnityEngine.PhysicsModule">
+    <type fullname="UnityEngine.CapsuleCollider" preserve="all" />
+    <type fullname="UnityEngine.BoxCollider" preserve="all" />
+    <type fullname="UnityEngine.SphereCollider" preserve="all" />
+    <type fullname="UnityEngine.MeshCollider" preserve="all" />
+  </assembly>
+</linker>

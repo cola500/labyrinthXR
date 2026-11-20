@@ -45,7 +45,7 @@ namespace Labyrinth.Game
                 fitting = false;
                 game.SaveFit();
             }
-            if (Input.GetKeyDown(KeyCode.Home)) game.ResetFit();
+            if (Input.GetKeyDown(KeyCode.Home)) game.ResetFit("keys (Home)");
         }
 
         static float Axis(KeyCode pos, KeyCode pos2, KeyCode neg, KeyCode neg2) =>

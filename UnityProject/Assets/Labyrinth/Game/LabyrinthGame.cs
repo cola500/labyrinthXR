@@ -187,13 +187,13 @@ namespace Labyrinth.Game
             return true;
         }
 
-        public void ResetFit()
+        public void ResetFit(string by = "")
         {
             var changed = Fit.Reset();
             FitStore?.Clear();
             if (changed) OnFitChanged("reset");
             else FitChanged?.Invoke("reset");
-            Debug.Log($"[Fit] reset: {FitText}");
+            Debug.Log($"[Fit] reset{(by.Length > 0 ? $" by {by}" : "")}: {FitText}");
         }
 
         public void SaveFit()
@@ -206,6 +206,8 @@ namespace Labyrinth.Game
         void OnFitChanged(string cause)
         {
             // Changing the fit while a handle is held would move the knob under the hand: let go of both, in place.
+            if (Pitch.Held) Debug.Log($"[Fit] {cause} adjustment released the pitch handle at {Pitch.Value:+0.00;-0.00}");
+            if (Roll.Held) Debug.Log($"[Fit] {cause} adjustment released the roll handle at {Roll.Value:+0.00;-0.00}");
             Pitch.Release();
             Roll.Release();
             ApplyFit();

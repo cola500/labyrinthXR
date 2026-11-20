@@ -86,3 +86,29 @@ spacing the level plaque no longer fits between the handle bases and moves onto 
   surface, palms behind and outside each knob; the knobs ~30 cm apart with room for both hands.
 - **Build:** OK, 25 MB, `UnityProject/Builds/reference/LabyrinthXR-fit-twohands.apk`.
 - **Headset:** not yet.
+
+## Headset session 1 (Quest 3, 2026-11-20 11:12–11:14, wifi ADB; device log, player)
+- Fit changed while controllers were active (spacing 72 → 30 cm, table 62–90 cm, saved 11:12:41–11:13:46; five
+  saves in 4 s point to the stick); last fit 62 cm / 30 cm. Four resets in two pairs 2–3 s apart (not yet known
+  whether deliberate). **Not tried: adjusting with bare hands** (no `[Fit]` line while hands were the source).
+- Both bare hands held their handles together for 37 s at 62 cm / 30 cm, several re-pinches, no unintended drop;
+  one still second: palm SD 1.8 / 2.0 mm; corrections 3–25 mm. Controllers grabbed both knobs at default and custom fit.
+- Not shown: an adjustment while a handle is held, tracking loss while held, the fit after an app restart, Viola.
+
+### Verification log: "class 'CapsuleCollider' doesn't exist" (92 error lines at a level change, 11:13:10)
+1. Why the error? `MazeBuilder` builds the next level at runtime with `GameObject.CreatePrimitive(Cylinder)`, which
+   adds a `CapsuleCollider`, and the class was not in the player.
+2. Why not in the player? IL2CPP/engine stripping keeps only engine classes the scenes or code reference; the scene
+   has no `CapsuleCollider` (`BoardBuilder` removes it from every cylinder at edit time).
+3. Why did it not break the game? The primitive is still created without the collider, which the builder would have
+   removed anyway; the level loaded and played.
+4. When did it start? With the first Quest build: the Oculus reference APK (`0f59e8f`) already lacks the type in its
+   IL2CPP metadata (as does every later APK), while Box/Sphere/MeshCollider are present.
+5. Why not caught earlier? Editor and tests never strip; earlier device logs were captured without a level change
+   (or only the last ~2 minutes from the device buffer), and the game kept working.
+- **Fix:** `Assets/link.xml` preserves the four collider classes. **Guard:** `scripts/labyrinth.sh build` (and
+  `check-apk`) fails when one of them is missing from the APK's metadata; it failed on the previous APK and passes now.
+- **Logging:** `[Fit]` lines now name who grabs the table height or the handle spacing (hand and source), the release
+  (and tracking loss), stick adjustments, reset (by which hand), and when an adjustment releases a held handle (with
+  its value), so the next headset session can show these cases directly.
+- Tests 84 / 58 (+4 skipped renders); APK `UnityProject/Builds/reference/LabyrinthXR-fit-twohands-2.apk`.

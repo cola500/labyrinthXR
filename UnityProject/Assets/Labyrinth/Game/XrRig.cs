@@ -175,8 +175,17 @@ namespace Labyrinth.Game
                 if (game.TryGetComponent<LabyrinthFeedback>(out var feedback)) feedback.Grabbed(); // the rig is not under the labyrinth
                 if (source == InputSource.Controller && d.TryGetHapticCapabilities(out var caps) && caps.supportsImpulse) d.SendHapticImpulse(0, 0.35f, 0.04f);
             }
-            if (step.FitReleased) game.SaveFit();
-            if (step.Reset) game.ResetFit();
+            var hand = isLeft ? "left" : "right";
+            if (step.GrabbedFit)
+                Debug.Log(driver.HeightGrip.Holding
+                    ? $"[Fit] {hand}: grab table height by {source} at {game.Fit.TableHeight * 100f:0} cm"
+                    : $"[Fit] {hand}: grab handle spacing by {source} at {game.Fit.LeverSpacing * 200f:0} cm apart");
+            if (step.FitReleased)
+            {
+                Debug.Log($"[Fit] {hand}: release by {(source == InputSource.None ? "tracking loss" : source.ToString())}");
+                game.SaveFit();
+            }
+            if (step.Reset) game.ResetFit($"{hand} {source} (held the button {HandDriver.ResetSeconds:0.#} s)");
             handLog?.Frame(source, previous, sample, step.GrabbedKnob, wasHeld, lever, view);
 
             view.ShowState(driver.Grip.Hover, lever.Held);
@@ -202,6 +211,7 @@ namespace Labyrinth.Game
             if (height != 0f || spacing != 0f)
             {
                 var dt = Time.deltaTime * PlayerFit.StickSpeed;
+                if (!stickAdjusting) Debug.Log($"[Fit] stick: adjusting {(height != 0f ? "table height (right stick)" : "handle spacing (left stick)")}");
                 game.SetFit(game.Fit.TableHeight + height * dt, game.Fit.LeverSpacing + spacing * dt, "stick");
                 stickAdjusting = true;
             }

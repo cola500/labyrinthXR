@@ -103,6 +103,25 @@ scene() {
     echo "[scene] OK"
 }
 
+# Engine classes the game creates at runtime (CreatePrimitive in MazeBuilder at a level change) but no scene keeps:
+# IL2CPP stripping drops them unless Assets/link.xml preserves them. Checked in every built APK's metadata.
+REQUIRED_TYPES=(CapsuleCollider BoxCollider SphereCollider MeshCollider)
+
+check_apk() {
+    local missing=() t meta
+    meta="$(mktemp)"
+    unzip -p "$1" 'assets/bin/Data/Managed/Metadata/global-metadata.dat' >"$meta" 2>/dev/null || true
+    for t in "${REQUIRED_TYPES[@]}"; do
+        LC_ALL=C grep -a -q "$t" "$meta" || missing+=("$t")
+    done
+    rm -f "$meta"
+    if (( ${#missing[@]} )); then
+        echo "[build] stripped from the APK: ${missing[*]} (runtime CreatePrimitive would fail; see Assets/link.xml)" >&2
+        return 1
+    fi
+    echo "[build] runtime types present: ${REQUIRED_TYPES[*]}"
+}
+
 build() {
     guard
     echo "[build] Unity ${UNITY_VERSION} -> ${APK#"${ROOT}/"}"
@@ -110,6 +129,7 @@ build() {
         -executeMethod Labyrinth.EditorTools.QuestBuild.Build -logFile "${PROJECT}/Logs/quest-build.log" \
         || { echo "[build] failed, see UnityProject/Logs/quest-build.log" >&2; exit 3; }
     [[ -f "$APK" ]] || { echo "[build] no APK produced" >&2; exit 3; }
+    check_apk "$APK" || exit 3
     echo "[build] OK · $(du -h "$APK" | cut -f1)"
 }
 
@@ -134,5 +154,6 @@ case "${1:-}" in
     launch) d="$(device)"; "$ADB" -s "$d" shell monkey -p "$PACKAGE_ID" -c android.intent.category.LAUNCHER 1 >/dev/null ;;
     log) d="$(device)"; "$ADB" -s "$d" logcat -s Unity ;;
     devices) "$ADB" devices -l ;;
+    check-apk) check_apk "${2:-$APK}" ;;
     *) sed -n '2,13p' "$0"; exit 1 ;;
 esac
