@@ -18,6 +18,9 @@ namespace Labyrinth.Game
         public string Hint = "Grab the handles with the grip buttons\nLeft handle: tilt forward and back\nRight handle: tilt left and right";
         public string Text => message != null ? message.text : "";
         public string PlaqueText => plaque != null ? plaque.text : "";
+        public const float FitMessageSeconds = 2.5f;
+        string fitText = "";
+        float fitUntil = float.NegativeInfinity;
         public static string LevelLabel(MazeLayout m) => $"Level {m.Number} / {Levels.Count} — {m.Name}";
 
         AudioClip plunk, chime, click;
@@ -50,6 +53,7 @@ namespace Labyrinth.Game
             roll.playOnAwake = false;
             game.RoundChanged += OnRound;
             game.LevelLoaded += OnLevel;
+            game.FitChanged += OnFit;
             SetGoal(false);
             ShowLevel();
             // TextMesh + dynamic font: put every glyph in the atlas up front, and rebuild the text if the atlas is
@@ -88,6 +92,7 @@ namespace Labyrinth.Game
             {
                 game.RoundChanged -= OnRound;
                 game.LevelLoaded -= OnLevel;
+                game.FitChanged -= OnFit;
             }
             Font.textureRebuilt -= OnFontRebuilt;
         }
@@ -123,9 +128,21 @@ namespace Labyrinth.Game
             }
         }
 
+        // While the fit is being changed (and a moment after), the message shows the measures.
+        void OnFit(string cause)
+        {
+            if (cause == "load") return;
+            fitText = cause == "reset" ? $"Table and handles reset\n{Measures()}" : Measures();
+            fitUntil = Time.unscaledTime + FitMessageSeconds;
+        }
+
+        string Measures() =>
+            $"Table {game.Fit.TableHeight * 100f:0} cm  ·  handles {game.Fit.LeverSpacing * 200f:0} cm apart";
+
         void Update()
         {
-            message.text = game.Round.State switch
+            if (Time.unscaledTime < fitUntil) message.text = fitText;
+            else message.text = game.Round.State switch
             {
                 RoundState.Falling => "Oops! Back to the start…",
                 RoundState.Won when game.CampaignComplete => "You mastered all five labyrinths!"

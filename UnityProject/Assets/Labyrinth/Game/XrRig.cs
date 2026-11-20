@@ -4,6 +4,10 @@
 // neither can take the other's handle. Per hand a tracked controller always wins; the right handle falls back to the
 // tracked bare right hand (pinch near the knob, move the hand sideways). Switching source or losing tracking releases
 // the handle where it is (HandGrip).
+// Fit (PlayerFit): any hand can pinch/grip a brass table-height grip and move up/down, or a handle's wooden base and
+// move sideways (both handles follow symmetrically), or hold a fingertip/controller on the reset button for 1 s;
+// with controllers also the right stick up/down (table height) and the left stick up/down (handle spacing), at
+// Market VR's counter speed. A finished adjustment is saved on the device.
 // A/X restarts (the current level; after Level 5, from Level 1). Holding B/Y for HoldToFirstLevel seconds goes back
 // to Level 1 (held, so a stray press never throws away progress). On start and after a recenter, the labyrinth is placed in front of the player (yaw only, floor level).
 // Lost focus/pause releases both handles (the board keeps its tilt, like a real labyrinth).
@@ -27,6 +31,8 @@ namespace Labyrinth.Game
         [SerializeField] float holdToFirstLevel = 1.5f;
         [Tooltip("Spike 1: the bare right hand may work the roll handle when the right controller is not tracked.")]
         [SerializeField] bool rightBareHand = true;
+        [Tooltip("The bare left hand may work the pitch handle when the left controller is not tracked.")]
+        [SerializeField] bool leftBareHand;
         [SerializeField] bool showHandMarkers = true;
         [Tooltip("Thumb-tip to index-tip distance (m) below which a pinch closes / above which it opens.")]
         [SerializeField] float pinchPress = 0.031f;
@@ -39,9 +45,10 @@ namespace Labyrinth.Game
         readonly HandLog log = new("right");
         readonly List<XRInputSubsystem> subsystems = new();
         Transform leftHand, rightHand;
-        HandMarkers rightMarkers;
-        bool placed, primaryWasDown;
+        HandMarkers rightMarkers, leftMarkers;
+        bool placed, primaryWasDown, stickAdjusting;
         float secondaryHeld;
+        const float StickDeadZone = 0.25f;
 
         public Material HandMaterial => handMaterial;
 
@@ -65,6 +72,7 @@ namespace Labyrinth.Game
             leftHand = HandVisual("LeftHand");
             rightHand = HandVisual("RightHand");
             rightMarkers = new HandMarkers(transform, handMaterial, "RightHand");
+            leftMarkers = new HandMarkers(transform, handMaterial, "LeftHand");
             SubsystemManager.GetSubsystems(subsystems);
             foreach (var s in subsystems)
             {
@@ -106,8 +114,10 @@ namespace Labyrinth.Game
             pinch.PressDistance = pinchPress;
             pinch.ReleaseDistance = pinchRelease;
 
-            var (restartL, firstL) = Hand(XRNode.LeftHand, left, game.Pitch, game.PitchLever, leftHand, false);
-            var (restartR, firstR) = Hand(XRNode.RightHand, right, game.Roll, game.RollLever, rightHand, rightBareHand);
+            var (restartL, firstL, stickL) = Hand(XRNode.LeftHand, left, game.Pitch, game.PitchLever, leftHand, leftBareHand, leftMarkers, null);
+            var (restartR, firstR, stickR) = Hand(XRNode.RightHand, right, game.Roll, game.RollLever, rightHand, rightBareHand, rightMarkers, log);
+            Sticks(stickL, stickR);
+            ShowFitControls();
             var restart = restartL || restartR;
             if (restart && !primaryWasDown) game.Restart();
             primaryWasDown = restart;
@@ -119,8 +129,9 @@ namespace Labyrinth.Game
             }
         }
 
-        // Updates one hand; returns whether its controller's primary (X/A) and secondary (Y/B) buttons are down.
-        (bool primary, bool secondary) Hand(XRNode node, HandDriver driver, Lever lever, LeverView view, Transform visual, bool bareHand)
+        // Updates one hand; returns its controller's primary (X/A) and secondary (Y/B) buttons and its stick.
+        (bool primary, bool secondary, Vector2 stick) Hand(XRNode node, HandDriver driver, Lever lever, LeverView view, Transform visual,
+            bool bareHand, HandMarkers markers, HandLog handLog)
         {
             var d = InputDevices.GetDeviceAtXRNode(node);
             var p = Vector3.zero;
@@ -132,9 +143,11 @@ namespace Labyrinth.Game
             d.TryGetFeatureValue(CommonUsages.grip, out var gripValue);
             d.TryGetFeatureValue(CommonUsages.primaryButton, out var primary);
             d.TryGetFeatureValue(CommonUsages.secondaryButton, out var secondary);
+            d.TryGetFeatureValue(CommonUsages.primary2DAxis, out var stick);
 
             Vector3 palm = default, thumb = default, index = default;
-            var handTracked = bareHand && !controllerTracked && hands.TryGetRight(out palm, out thumb, out index);
+            var isLeft = node == XRNode.LeftHand;
+            var handTracked = bareHand && !controllerTracked && hands.TryGet(isLeft, out palm, out thumb, out index);
             var source = SourceChoice.Choose(controllerTracked, handTracked, bareHand);
 
             HandSample sample;
@@ -154,14 +167,16 @@ namespace Labyrinth.Game
             var wasHeld = lever.Held;
             var previous = driver.Grip.Source;
             driver.Grip.GrabRadius = grabRadius;
-            var grabbed = driver.Step(sample, lever, view);
-            if (grabbed)
+            var step = driver.Step(sample, lever, view, game, Time.deltaTime);
+            if (step.GrabbedKnob || step.GrabbedFit)
             {
-                game.NoteGrab();
+                if (step.GrabbedKnob) game.NoteGrab();
                 if (game.TryGetComponent<LabyrinthFeedback>(out var feedback)) feedback.Grabbed(); // the rig is not under the labyrinth
                 if (source == InputSource.Controller && d.TryGetHapticCapabilities(out var caps) && caps.supportsImpulse) d.SendHapticImpulse(0, 0.35f, 0.04f);
             }
-            if (bareHand) log.Frame(source, previous, sample, grabbed, wasHeld, lever, view);
+            if (step.FitReleased) game.SaveFit();
+            if (step.Reset) game.ResetFit();
+            handLog?.Frame(source, previous, sample, step.GrabbedKnob, wasHeld, lever, view);
 
             view.ShowState(driver.Grip.Hover, lever.Held);
             visual.gameObject.SetActive(source == InputSource.Controller);
@@ -169,13 +184,52 @@ namespace Labyrinth.Game
             {
                 visual.position = sample.GrabPoint;
                 visual.rotation = transform.rotation * r;
-                visual.localScale = Vector3.one * (lever.Held ? 0.040f : 0.048f);
+                visual.localScale = Vector3.one * (lever.Held || driver.HeightGrip.Holding || driver.SpacingGrip.Holding ? 0.040f : 0.048f);
             }
-            if (bareHand && rightMarkers != null)
-                rightMarkers.Show(showHandMarkers && source == InputSource.Hand, sample.MovePoint,
-                    transform.TransformPoint(thumb), transform.TransformPoint(index), driver.Grip.Source == InputSource.Hand && sample.Grip >= driver.Grip.PressThreshold);
+            if (bareHand && markers != null)
+                markers.Show(showHandMarkers && source == InputSource.Hand, sample.MovePoint,
+                    transform.TransformPoint(thumb), transform.TransformPoint(index), source == InputSource.Hand && sample.Grip >= driver.Grip.PressThreshold);
             var buttons = source == InputSource.Controller;
-            return (buttons && primary, buttons && secondary);
+            return (buttons && primary, buttons && secondary, buttons ? stick : Vector2.zero);
+        }
+
+        // Market VR's pattern: a stick moves the value at a fixed speed; saved when the stick is let go.
+        void Sticks(Vector2 left, Vector2 right)
+        {
+            var height = DeadZone(right.y);
+            var spacing = DeadZone(left.y);
+            if (height != 0f || spacing != 0f)
+            {
+                var dt = Time.deltaTime * PlayerFit.StickSpeed;
+                game.SetFit(game.Fit.TableHeight + height * dt, game.Fit.LeverSpacing + spacing * dt, "stick");
+                stickAdjusting = true;
+            }
+            else if (stickAdjusting)
+            {
+                stickAdjusting = false;
+                game.SaveFit();
+            }
+        }
+
+        static float DeadZone(float v)
+        {
+            var a = Mathf.Abs(v);
+            return a <= StickDeadZone ? 0f : Mathf.Sign(v) * (a - StickDeadZone) / (1f - StickDeadZone);
+        }
+
+        void ShowFitControls()
+        {
+            var fit = game.Fit;
+            var heightHover = left.HeightGrip.Hover || right.HeightGrip.Hover;
+            foreach (var g in game.HeightGrips) Highlight(g, heightHover, fit.HeightLever.Held, 0f);
+            var spacingHover = left.SpacingGrip.Hover || right.SpacingGrip.Hover;
+            foreach (var g in game.SpacingGrips) Highlight(g, spacingHover, fit.SpacingLever.Held, 0f);
+            Highlight(game.ResetButton, false, false, Mathf.Max(left.ResetProgress, right.ResetProgress));
+        }
+
+        static void Highlight(Transform t, bool hover, bool held, float progress)
+        {
+            if (t != null && t.TryGetComponent<GripHighlight>(out var h)) h.Show(hover, held, progress);
         }
 
         void UpdateHead()

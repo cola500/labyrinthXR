@@ -148,6 +148,45 @@ namespace Labyrinth.Tests
             Shot("L5-c-campaign-complete", W(0, 1.62f, -0.95f), W(0, 0.92f, 0.05f), 60);
         }
 
+        // Fit: the default layout and a low table with narrow handles (0.70 m, 15 cm from the centre each = 30 cm
+        // apart), from an adult's and a child's viewpoint, with the bare-hand markers of a simulated right hand on the
+        // moved roll knob, the fit controls and the side clearance.
+        [UnityTest]
+        public IEnumerator Snapshots_Fit()
+        {
+            g.LoadLevel(1);
+            var rig = Object.FindAnyObjectByType<XrRig>();
+            var markers = new HandMarkers(new GameObject("HandMarkersTest").transform, rig.HandMaterial, "Sim");
+            foreach (var (name, height, spacing) in new[] { ("F1-default", PlayerFit.DefaultTableHeight, PlayerFit.DefaultLeverSpacing), ("F2-low-narrow", 0.70f, 0.15f) })
+            {
+                g.SetFit(height, spacing, "snapshot");
+                g.Pitch.Set(0.3f);
+                g.Roll.Set(-0.4f);
+                g.Advance(0.6f);
+                yield return null;
+                var hand = SimulatedHand.AtKnob(g.transform, g.RollLever.Knob);
+                hand.Tips = 0.02f;
+                markers.Show(true, hand.Palm, hand.ThumbTip, hand.IndexTip, true);
+                yield return null;
+                var top = g.transform.position.y + g.SurfaceHeight; // world board surface
+                Vector3 At(float x, float y, float z) // (x, z) in the labyrinth's floor plan, y = world height
+                {
+                    var w = g.transform.TransformPoint(new Vector3(x, 0, z));
+                    w.y = y;
+                    return w;
+                }
+                Shot($"{name}-a-adult-view", At(0, 1.62f, -0.95f), At(0, top - 0.03f, 0.05f), 60);
+                Shot($"{name}-b-child-view", At(0, 1.20f, -0.80f), At(0, top - 0.02f, 0.0f), 75);
+                Shot($"{name}-c-handles", At(0, top + 0.42f, -1.20f), At(0, top + 0.10f, -0.55f), 50);
+                Shot($"{name}-d-side", At(1.55f, top + 0.10f, -0.70f), At(0, top - 0.25f, -0.2f), 55);
+                var grip = g.HeightGrips[1].position;
+                var towards = (g.ResetButton.position + grip) * 0.5f;
+                Shot($"{name}-e-fit-controls", towards + g.transform.TransformDirection(new Vector3(-0.05f, 0.35f, -0.55f)), towards, 60);
+            }
+            markers.Destroy();
+            g.SetFit(PlayerFit.DefaultTableHeight, PlayerFit.DefaultLeverSpacing, "snapshot");
+        }
+
         // Spike 1: the bare-hand debug markers (palm blue, thumb tip red, index tip green, pinch point white) of a
         // simulated right hand pinching the roll knob, built by the runtime's HandMarkers with the rig's hand material,
         // then the hand moved 4 cm right through HandDriver so the handle and board follow. Layout only: real tracked

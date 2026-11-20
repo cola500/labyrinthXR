@@ -1,5 +1,8 @@
 // Builds the labyrinth under a root transform: the tilting board with its rim and the first level's maze (MazeBuilder),
-// the steel ball, the fixed frame with its catch tray, the table, the two handles and the level plaque.
+// the steel ball, the fixed frame with its catch tray, the table, the two handles, the level plaque and the fit
+// controls (two brass table-height grips on the table's front edge, a hold-to-reset button between them; the handles'
+// wooden bases are the spacing grips). LabyrinthGame.ApplyFit moves all of it for the player's table height and handle
+// spacing; what is built here is the default fit (PlayerFit.Default*).
 // Root space: floor level y = 0, the player stands on -z looking towards +z, the board's top surface at SurfaceHeight.
 // SceneSetup runs this in the editor and saves the result in the scene (the generated meshes become assets).
 using System.Collections.Generic;
@@ -28,9 +31,10 @@ namespace Labyrinth.Game
         public const float FrameThickness = 0.045f;
         public const float FrameTop = 0.03f;      // above the board surface
         public const float TrayDepth = 0.17f;     // below the board surface
-        public const float LeverSpacing = 0.36f;  // each handle's distance from the centre line
+        public const float LeverSpacing = PlayerFit.DefaultLeverSpacing; // each handle's distance from the centre line (default fit)
         public const float ShaftLength = 0.16f;
         public const float BallMass = 0.7f;
+        public const float PlaqueWidth = 0.48f;
 
         public static readonly List<Mesh> GeneratedMeshes = new();
 
@@ -102,32 +106,58 @@ namespace Labyrinth.Game
             table.SetParent(root, false);
             var tx = ix + t + 0.06f;
             var tz = iz + t + 0.06f;
-            Box("TableTop", table, new Vector3(0, y0 - 0.04f, 0), new Vector3(2 * tx, 0.04f, 2 * tz), mat.TableWood, null);
+            var tableTopY = y0 - 0.04f;
+            Box("TableTop", table, new Vector3(0, tableTopY, 0), new Vector3(2 * tx, 0.04f, 2 * tz), mat.TableWood, null);
+            var legTop = y0 - 0.06f; // the legs reach from the floor (y = 0 at the default fit) to under the table top
+            var legs = new List<Transform>();
             foreach (var sx in new[] { -1, 1 })
                 foreach (var sz in new[] { -1, 1 })
-                    Box("Leg", table, new Vector3(sx * (tx - 0.06f), (y0 - 0.06f) / 2, sz * (tz - 0.06f)), new Vector3(0.06f, y0 - 0.06f, 0.06f), mat.TableWood, null);
+                    legs.Add(Box("Leg", table, new Vector3(sx * (tx - 0.06f), legTop / 2, sz * (tz - 0.06f)), new Vector3(0.06f, legTop, 0.06f), mat.TableWood, null));
 
             // --- the two handles -------------------------------------------------------------------------------------
             var front = -(iz + t);
-            var pitch = Lever("PitchHandle", root, new Vector3(-LeverSpacing, h, front), Vector3.forward, mat);
-            var roll = Lever("RollHandle", root, new Vector3(LeverSpacing, h, front), Vector3.right, mat);
+            var (pitch, pitchMount, pitchBracket) = Lever("PitchHandle", root, new Vector3(-LeverSpacing, h, front), Vector3.forward, mat);
+            var (roll, rollMount, rollBracket) = Lever("RollHandle", root, new Vector3(LeverSpacing, h, front), Vector3.right, mat);
+
+            // --- the fit controls: table-height grips and the reset button on the table's front edge --------------------
+            var fit = new GameObject("FitControls").transform;
+            fit.SetParent(root, false);
+            var gripZ = -tz - 0.03f;
+            var heightGrips = new Transform[2];
+            for (var i = 0; i < 2; i++)
+            {
+                var x = (i == 0 ? -1 : 1) * (tx - 0.13f);
+                var grip = Cylinder(i == 0 ? "HeightGripLeft" : "HeightGripRight", fit, new Vector3(x, tableTopY, gripZ), 0.011f, 0.13f, Vector3.right, mat.Brass);
+                grip.gameObject.AddComponent<GripHighlight>();
+                foreach (var dx in new[] { -0.055f, 0.055f })
+                    Cylinder("Post", grip.parent, new Vector3(x + dx, tableTopY, (gripZ - tz) / 2), 0.006f, 0.03f, Vector3.forward, mat.Brass);
+                heightGrips[i] = grip;
+            }
+            var reset = Cylinder("ResetButton", fit, new Vector3(0, tableTopY, -tz - 0.004f), 0.022f, 0.008f, Vector3.forward, mat.Knob);
+            reset.gameObject.AddComponent<GripHighlight>();
+            pitchBracket.gameObject.AddComponent<GripHighlight>();
+            rollBracket.gameObject.AddComponent<GripHighlight>();
 
             game.Wire(boardBody, ball, pitch, roll, h, mazeMat, maze.Root, maze.Goal);
+            var plaque = Plaque(root, front, mat);
+            game.WireFit(legs.ToArray(), legTop, pitchMount, rollMount, new[] { pitchBracket, rollBracket }, heightGrips, reset,
+                plaque.transform.parent, front);
             var feedback = root.gameObject.AddComponent<LabyrinthFeedback>();
-            feedback.Wire(game, Message(root, m, mat), Plaque(root, front, mat), root.gameObject.AddComponent<AudioSource>());
+            feedback.Wire(game, Message(root, m, mat), plaque, root.gameObject.AddComponent<AudioSource>());
             root.gameObject.AddComponent<DesktopInput>();
             return game;
         }
 
-        // A handle on a bracket fixed to the frame's front: the slot on top shows which way it moves.
-        static LeverView Lever(string name, Transform root, Vector3 frameFront, Vector3 travel, BoardMaterials mat)
+        // A handle on a bracket fixed to the frame's front: the slot on top shows which way it moves. The bracket (its
+        // wooden base) doubles as the grip for moving the handles closer together or further apart.
+        static (LeverView view, Transform mount, Transform bracket) Lever(string name, Transform root, Vector3 frameFront, Vector3 travel, BoardMaterials mat)
         {
             var group = new GameObject(name + "Mount").transform;
             group.SetParent(root, false);
             var alongZ = Mathf.Abs(travel.z) > 0.5f;
             var bracketSize = alongZ ? new Vector3(0.07f, 0.04f, 0.15f) : new Vector3(0.15f, 0.04f, 0.07f);
             var centre = frameFront + new Vector3(0, -0.01f, -bracketSize.z / 2);
-            Box("Bracket", group, centre, bracketSize, mat.FrameWood, null);
+            var bracket = Box("Bracket", group, centre, bracketSize, mat.FrameWood, null);
             var slot = alongZ ? new Vector3(0.014f, 0.004f, 0.12f) : new Vector3(0.12f, 0.004f, 0.014f);
             Box("Slot", group, centre + Vector3.up * (bracketSize.y / 2), slot, mat.HoleDark, null);
 
@@ -139,7 +169,7 @@ namespace Labyrinth.Game
             var knob = Sphere("Knob", pivot, Vector3.up * ShaftLength, 0.052f, mat.Knob);
             var view = pivot.gameObject.AddComponent<LeverView>();
             view.Wire(travel, ShaftLength, knob, knob.GetComponent<Renderer>());
-            return view;
+            return (view, group, bracket);
         }
 
         static TextMesh Message(Transform root, MazeLayout m, BoardMaterials mat)
@@ -159,13 +189,14 @@ namespace Labyrinth.Game
         }
 
         // A small walnut plaque on the frame's front edge, between the handles, tilted towards the player: the level.
+        // When the handles are moved too close together for it, LabyrinthGame moves it down onto the frame's front face.
         static TextMesh Plaque(Transform root, float frontZ, BoardMaterials mat)
         {
             var plaque = new GameObject("LevelPlaque").transform;
             plaque.SetParent(root, false);
             plaque.localPosition = new Vector3(0, SurfaceHeight + FrameTop - 0.012f, frontZ - 0.012f);
             plaque.localRotation = Quaternion.Euler(35f, 0f, 0f); // faces up-and-back, towards a standing player
-            Box("Board", plaque, Vector3.zero, new Vector3(0.48f, 0.055f, 0.012f), mat.FrameWood, null);
+            Box("Board", plaque, Vector3.zero, new Vector3(PlaqueWidth, 0.055f, 0.012f), mat.FrameWood, null);
             var go = new GameObject("Text");
             go.transform.SetParent(plaque, false);
             go.transform.localPosition = new Vector3(0, 0, -0.0065f);
@@ -197,7 +228,7 @@ namespace Labyrinth.Game
         public static Transform Disc(string name, Transform parent, Vector3 pos, float radius, float height, Material mat) =>
             Cylinder(name, parent, pos + Vector3.up * (height / 2), radius, height, Vector3.up, mat);
 
-        static Transform Cylinder(string name, Transform parent, Vector3 pos, float radius, float length, Vector3 axis, Material mat)
+        public static Transform Cylinder(string name, Transform parent, Vector3 pos, float radius, float length, Vector3 axis, Material mat)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             go.name = name;

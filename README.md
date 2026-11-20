@@ -35,6 +35,15 @@ then put both controllers down.
 - Coloured debug markers show the tracked palm (blue), thumb tip (red) and index tip (green).
 - Only the right handle is hand-driven so far; picking up the left controller switches the Quest back to controllers.
 
+Fit the labyrinth to the player (saved on the headset):
+- **Table height:** pinch or grip a brass grip on the table's front edge and move your hand up or down (or right
+  stick up/down). 60–110 cm, default 95 cm.
+- **Handle spacing:** pinch or grip a handle's wooden base and move your hand sideways; both handles move together
+  (or left stick up/down). 30–72 cm apart, default 72 cm.
+- **Reset:** hold a fingertip or a controller on the round button in the middle of the table's front edge for 1 s.
+- Adjusting lets go of the handles where they are. Desktop: `+`/`-` (PageUp/PageDown) height, `[`/`]` spacing, Home
+  reset. See `docs/FEATURE-fit-and-hands.md`.
+
 ### Install over wifi
 
 `adb tcpip` once over USB, then `adb connect <headset-ip>:5555` (the headset's address:

@@ -14,12 +14,15 @@ namespace Labyrinth.Game
 
         public bool Running => Find() != null;
 
-        public bool TryGetRight(out Vector3 palm, out Vector3 thumbTip, out Vector3 indexTip)
+        public bool TryGetRight(out Vector3 palm, out Vector3 thumbTip, out Vector3 indexTip) =>
+            TryGet(false, out palm, out thumbTip, out indexTip);
+
+        public bool TryGet(bool left, out Vector3 palm, out Vector3 thumbTip, out Vector3 indexTip)
         {
             palm = thumbTip = indexTip = default;
             var s = Find();
             if (s == null) return false;
-            var hand = s.rightHand;
+            var hand = left ? s.leftHand : s.rightHand;
             if (!hand.isTracked) return false;
             if (!hand.GetJoint(XRHandJointID.Palm).TryGetPose(out var p)) return false;
             if (!hand.GetJoint(XRHandJointID.ThumbTip).TryGetPose(out var t)) return false;

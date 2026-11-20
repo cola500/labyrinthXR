@@ -3,6 +3,9 @@
 // handle follows the hand; letting go releases it. Losing tracking or switching the input source (controller <-> bare
 // hand) also releases it, and the grip then has to open before a new press counts: a hand that comes back already
 // pinched, or a controller picked up with the grip squeezed, never grabs by itself. The handle stays where it was left.
+// A grip only moves a lever it grabbed itself (Holding): two hands may share a lever (the table-height control) without
+// one dragging what the other holds, and a lever released from outside (an adjustment, lost focus) also needs the
+// grip opened before it can be grabbed again.
 namespace Labyrinth.Core
 {
     public enum InputSource { None, Controller, Hand }
@@ -14,6 +17,7 @@ namespace Labyrinth.Core
         public float ReleaseThreshold = 0.35f;
 
         public bool Hover { get; private set; }
+        public bool Holding { get; private set; }
         public InputSource Source { get; private set; }
         bool gripDown;
 
@@ -29,7 +33,8 @@ namespace Labyrinth.Core
             {
                 if (Source != InputSource.None)
                 {
-                    if (lever.Held) lever.Release();
+                    if (Holding && lever.Held) lever.Release();
+                    Holding = false;
                     gripDown = true; // must open before the next press counts
                 }
                 Source = source;
@@ -39,17 +44,24 @@ namespace Labyrinth.Core
                 Hover = false;
                 return false;
             }
+            if (Holding && !lever.Held) Holding = false; // released from outside: gripDown stays, so open first
             var wasDown = gripDown;
             gripDown = gripDown ? grip > ReleaseThreshold : grip >= PressThreshold;
             var near = distance < GrabRadius;
             Hover = !lever.Held && near;
-            if (gripDown && !wasDown && near)
+            if (gripDown && !wasDown && near && !lever.Held)
             {
                 lever.Grab(coord);
+                Holding = true;
                 return true;
             }
-            if (gripDown && lever.Held) lever.Drag(coord);
-            else if (!gripDown && lever.Held) lever.Release();
+            if (!Holding) return false;
+            if (gripDown) lever.Drag(coord);
+            else
+            {
+                lever.Release();
+                Holding = false;
+            }
             return false;
         }
     }

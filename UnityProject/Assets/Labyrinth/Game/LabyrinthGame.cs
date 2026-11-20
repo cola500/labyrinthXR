@@ -4,6 +4,10 @@
 // position in board space. VR (XrHands), the desktop keys (DesktopInput) and the tests all go through Pitch/Roll.
 // Levels: Campaign holds the level index; LoadLevel swaps only the maze under the board (MazeBuilder), so every level
 // shares the same ball, board, handles and physics. A won level advances after Campaign.AdvanceSeconds.
+// Fit (PlayerFit): the player's table height and handle spacing. ApplyFit moves the whole labyrinth up or down (the
+// root sits TableHeight - SurfaceHeight above the floor and the legs stretch to reach it) and slides the two handles,
+// their bases and grab zones symmetrically along x; board, maze, ball and handle travel directions are untouched.
+// Any change releases both handles where they are (no jolt). Fit survives restarts, level changes and Place (recenter).
 // Board convention: Pitch +1 = handle pushed away from the player = far edge down; Roll +1 = handle pushed right =
 // right edge down. So the ball rolls the way the handle is pushed.
 using System;
@@ -42,6 +46,18 @@ namespace Labyrinth.Game
         [SerializeField] GameObject maze;
         [SerializeField] Renderer goal;
 
+        [Header("Fit (set by BoardBuilder)")]
+        [SerializeField] Transform[] legs;
+        [SerializeField] float legTop;
+        [SerializeField] Transform pitchMount, rollMount;
+        [SerializeField] Transform[] spacingGrips;   // the handles' bases: [0] pitch (left), [1] roll (right)
+        [SerializeField] Transform[] heightGrips;    // brass grips on the table's front edge: [0] left, [1] right
+        [SerializeField] Transform resetButton;
+        [SerializeField] Transform plaque;
+        [SerializeField] Vector3 plaqueTopPosition;
+        [SerializeField] Quaternion plaqueTopRotation;
+        [SerializeField] float frameFront;
+
         public MazeLayout Layout { get; private set; } = Levels.Create(0);
         public readonly Campaign Campaign = new();
         public readonly Lever Pitch = new();
@@ -49,6 +65,11 @@ namespace Labyrinth.Game
         public readonly TiltAxis PitchAxis = new();
         public readonly TiltAxis RollAxis = new();
         public readonly Round Round = new();
+
+        public readonly PlayerFit Fit = new();
+        public IFitStore FitStore { get; set; } // PlayerPrefs on the device and in the editor; none in batch mode (tests)
+        public event Action<string> FitChanged;  // the cause: "Hand", "Controller", "stick", "keys", "reset", "load"
+        float floorY;
 
         public event Action<RoundEvent> RoundChanged;
         public event Action<int> LevelLoaded;
@@ -61,6 +82,13 @@ namespace Labyrinth.Game
         public bool EverGrabbed { get; private set; }
         public GameObject Maze => maze;
         public Renderer GoalRenderer => goal;
+        public Transform[] HeightGrips => heightGrips;
+        public Transform[] SpacingGrips => spacingGrips;
+        public Transform ResetButton => resetButton;
+        public Transform Plaque => plaque;
+        public Transform[] Legs => legs;
+        public float FloorY => floorY;
+        public bool PlaqueOnTop => PlaqueFitsBetween(Fit.LeverSpacing);
         public bool Won => Round.State == RoundState.Won;
         // All five levels done: the final completion state, until a restart from Level 1.
         public bool CampaignComplete => Campaign.Completed(Won);
@@ -100,14 +128,131 @@ namespace Labyrinth.Game
             surfaceHeight = surface;
         }
 
+        public void WireFit(Transform[] tableLegs, float legTopY, Transform pitchMountGroup, Transform rollMountGroup,
+                            Transform[] bases, Transform[] heightGripTransforms, Transform reset, Transform levelPlaque, float frontZ)
+        {
+            legs = tableLegs;
+            legTop = legTopY;
+            pitchMount = pitchMountGroup;
+            rollMount = rollMountGroup;
+            spacingGrips = bases;
+            heightGrips = heightGripTransforms;
+            resetButton = reset;
+            plaque = levelPlaque;
+            plaqueTopPosition = levelPlaque.localPosition;
+            plaqueTopRotation = levelPlaque.localRotation;
+            frameFront = frontZ;
+        }
+
         void Awake()
         {
+            floorY = transform.position.y; // the scene is built at the default fit, standing on the floor
             Time.fixedDeltaTime = physicsStep;
             ApplySettings();
             ball.maxAngularVelocity = 400f; // the default would cap the rolling speed of a 28 mm ball near 1.4 m/s
         }
 
-        void Start() => ResetBall();
+        void Start()
+        {
+            if (FitStore == null && !Application.isBatchMode) FitStore = new PrefsFitStore();
+            LoadFit();
+            ResetBall();
+        }
+
+        // ---- fit -------------------------------------------------------------------------------------------------------
+
+        public void LoadFit()
+        {
+            if (!Fit.Load(FitStore)) return;
+            ApplyFit();
+            Debug.Log($"[Fit] loaded: {FitText}");
+            FitChanged?.Invoke("load");
+        }
+
+        public string FitText => $"table {Fit.TableHeight * 100f:0} cm, handles {Fit.LeverSpacing * 200f:0} cm apart";
+
+        // Stick, keys, tests. Returns whether anything changed.
+        public bool SetFit(float tableHeight, float leverSpacing, string cause)
+        {
+            if (!Fit.Set(tableHeight, leverSpacing)) return false;
+            OnFitChanged(cause);
+            return true;
+        }
+
+        // A hand dragged Fit.HeightLever or Fit.SpacingLever.
+        public bool FitFromLevers(string cause)
+        {
+            if (!Fit.FromLevers()) return false;
+            OnFitChanged(cause);
+            return true;
+        }
+
+        public void ResetFit()
+        {
+            var changed = Fit.Reset();
+            FitStore?.Clear();
+            if (changed) OnFitChanged("reset");
+            else FitChanged?.Invoke("reset");
+            Debug.Log($"[Fit] reset: {FitText}");
+        }
+
+        public void SaveFit()
+        {
+            if (Fit.IsDefault) FitStore?.Clear();
+            else Fit.Save(FitStore);
+            Debug.Log($"[Fit] saved: {FitText}");
+        }
+
+        void OnFitChanged(string cause)
+        {
+            // Changing the fit while a handle is held would move the knob under the hand: let go of both, in place.
+            Pitch.Release();
+            Roll.Release();
+            ApplyFit();
+            FitChanged?.Invoke(cause);
+        }
+
+        static bool PlaqueFitsBetween(float spacing) =>
+            spacing - 0.075f - 0.01f >= BoardBuilder.PlaqueWidth / 2f; // the roll bracket is 15 cm wide
+
+        // Puts everything where the current fit says. The root's rotation is yaw only, so moving it straight up keeps
+        // the labyrinth level; ball and board go along with it (their bodies are moved with the transforms).
+        public void ApplyFit()
+        {
+            var offset = Fit.TableHeight - surfaceHeight;
+            var dy = floorY + offset - transform.position.y;
+            if (Mathf.Abs(dy) > 1e-7f)
+            {
+                transform.position += Vector3.up * dy;
+                board.position = transform.TransformPoint(new Vector3(0, surfaceHeight, 0));
+                board.transform.position = board.position;
+                var p = ball.position + Vector3.up * dy;
+                ball.position = p;
+                ball.transform.position = p;
+            }
+            if (legs != null)
+                foreach (var leg in legs)
+                {
+                    var length = legTop + offset;
+                    leg.localPosition = new Vector3(leg.localPosition.x, legTop - length / 2, leg.localPosition.z);
+                    leg.localScale = new Vector3(leg.localScale.x, length, leg.localScale.z);
+                }
+
+            var s = Fit.LeverSpacing;
+            var shift = s - BoardBuilder.LeverSpacing;
+            SetX(pitchLever.transform, -s);
+            SetX(rollLever.transform, s);
+            if (pitchMount != null) SetX(pitchMount, -shift);
+            if (rollMount != null) SetX(rollMount, shift);
+            if (plaque != null)
+            {
+                if (PlaqueFitsBetween(s)) plaque.SetLocalPositionAndRotation(plaqueTopPosition, plaqueTopRotation);
+                else plaque.SetLocalPositionAndRotation(new Vector3(0, surfaceHeight - 0.10f, frameFront - 0.007f), Quaternion.identity);
+            }
+            Physics.SyncTransforms();
+        }
+
+        static void SetX(Transform t, float x) => t.localPosition = new Vector3(x, t.localPosition.y, t.localPosition.z);
 
         void OnValidate()
         {
@@ -246,10 +391,12 @@ namespace Labyrinth.Game
             }
         }
 
-        // Moves the whole labyrinth (e.g. in front of the VR player) and puts the ball back on the start.
+        // Moves the whole labyrinth (e.g. in front of the VR player) and puts the ball back on the start. `position` is
+        // on the floor; the player's table height is kept.
         public void Place(Vector3 position, Quaternion rotation)
         {
-            transform.SetPositionAndRotation(position, rotation);
+            floorY = position.y;
+            transform.SetPositionAndRotation(position + Vector3.up * (Fit.TableHeight - surfaceHeight), rotation);
             board.position = transform.TransformPoint(new Vector3(0, surfaceHeight, 0));
             board.rotation = BoardRotation(PitchAxis.Degrees, RollAxis.Degrees);
             board.transform.SetPositionAndRotation(board.position, board.rotation);

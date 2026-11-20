@@ -9,7 +9,8 @@ a 1.1 m wooden labyrinth on a table and tilts it with two handles: left hand = p
 hand = roll (push right = right edge down). A steel ball rolls by Unity physics; holes reset it, the goal wins.
 Five levels (`docs/FEATURE-levels.md`). Specs: `docs/EPIC-001.md` (base game: scope, DoR/DoD, verification log),
 `docs/FEATURE-levels.md` (levels: design, difficulty measures, evidence), `docs/DISCOVERY-hand-tracking.md` (hand
-tracking: OpenXR switch (Spike 0, done) and the bare right hand on the roll handle (Spike 1, results there)). Keep "automated test" / "off-headset render" /
+tracking: OpenXR switch (Spike 0, done) and the bare right hand on the roll handle (Spike 1, results there)),
+`docs/FEATURE-fit-and-hands.md` (table height / handle spacing for small players, both bare hands; evidence). Keep "automated test" / "off-headset render" /
 "build" / "headset" claims separate, and never claim headset verification from desktop runs.
 
 Sibling projects `../lilla-fruktstandet-funplay-spike` and `../CampfireVR` are reference only (patterns were copied
@@ -36,11 +37,14 @@ simulation mode); `RealFrameLoop_*` covers the real FixedUpdate/Update loop, whi
 - `Labyrinth.Core` (pure, EditMode-tested): `Lever` (handle value -1..1 from hand travel, end stops, optional return to
   neutral), `TiltAxis` (handle -> board degrees: limit, exponential smoothing, rate limit), `HandGrip` (fresh grip press
   near the knob grabs; hysteresis; tracking loss or a source switch releases and the grip must open before the next
-  press), `SourceChoice` (controller wins, else bare hand), `HandPinch` (thumb-index tip distance -> 0..1; closes <3.1 cm, opens >4.5 cm), `Round` (Playing -> Falling -> reset -> Playing; Won until
+  press), `SourceChoice` (controller wins, else bare hand), `HandPinch` (thumb-index tip distance -> 0..1; closes <3.1 cm, opens >4.5 cm), `PlayerFit` (table height
+  0.60–1.10 m, handle spacing 0.15–0.36 m, defaults = original layout; each value also a `Lever` for 1:1 hand drags;
+  `IFitStore`), `GrabTargets` (a press takes only the nearest target in reach), `Round` (Playing -> Falling -> reset -> Playing; Won until
   Restart), `MazeLayout` (one level: walls/holes/start/goal/route in cell units, `ToBoard` -> metres), `Levels` (the
   five layouts as data, same board/ball/hole sizes), `Campaign` (level index; a won level advances after 2.5 s; Level 5
   stays won = completion).
-- `Labyrinth.Game`: `LabyrinthGame` (on the root) is the single runtime entry: `Tick(dt)` steps handles -> axes ->
+- `Labyrinth.Game`: `LabyrinthGame` (on the root) is the single runtime entry (also the fit: `SetFit`/`ApplyFit` raise
+  the root above the floor, stretch the legs, slide handles/bases; any change releases both handles; `PrefsFitStore`): `Tick(dt)` steps handles -> axes ->
   `board.MoveRotation` (kinematic board), then fall/goal detection from the ball's board-space position. The ball is
   never moved by input. `LoadLevel(i)` swaps only the maze under the board: the old one is deactivated first (colliders
   leave physics at once), then destroyed with its generated meshes; `MazeBuilder` builds the new one from
