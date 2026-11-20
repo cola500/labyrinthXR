@@ -1,12 +1,14 @@
-// Quest configuration and APK build: OpenXR loader on Android only with the Meta Quest Support feature and the Oculus
-// Touch controller profile, IL2CPP/ARM64, min SDK 29, target SDK 34, Vulkan, single-pass instanced (multiview).
+// Quest configuration and APK build: OpenXR loader on Android only with the Meta Quest Support feature, the Oculus
+// Touch controller profile and the XR Hands Hand Tracking Subsystem (bare hands optional in the manifest), IL2CPP/ARM64, min SDK 29, target SDK 34, Vulkan, single-pass instanced (multiview).
 // Desktop/Standalone and the editor get no XR loader, so they stay non-VR (DesktopInput). Active input handling is
 // "Both": OpenXR needs the Input System package, DesktopInput uses the legacy Input Manager.
 // Batch: -buildTarget Android -executeMethod Labyrinth.EditorTools.QuestBuild.Build
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Xml;
 using UnityEditor;
+using UnityEditor.Android;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.XR.Management;
@@ -14,6 +16,7 @@ using UnityEditor.XR.Management.Metadata;
 using UnityEditor.XR.OpenXR.Features;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.XR.Hands.OpenXR;
 using UnityEngine.XR.Management;
 using UnityEngine.XR.OpenXR;
 using UnityEngine.XR.OpenXR.Features.Interactions;
@@ -58,8 +61,9 @@ namespace Labyrinth.EditorTools
             Debug.Log($"[QuestBuild] Configured: id={ApplicationId}, loaders=[{string.Join(", ", manager.activeLoaders.Select(l => l.GetType().Name))}] (assigned now={assigned}), {features}");
         }
 
-        // Meta Quest Support (Quest manifest entries, all Quest models as targets) and the Oculus Touch interaction
-        // profile, which the Quest 3 runtime serves for its Touch Plus controllers. Everything else stays off.
+        // Meta Quest Support (Quest manifest entries, all Quest models as targets), the Oculus Touch interaction
+        // profile, which the Quest 3 runtime serves for its Touch Plus controllers, and Hand Tracking (XR Hands'
+        // XRHandSubsystem). Everything else stays off.
         static string ConfigureOpenXr()
         {
             FeatureHelpers.RefreshFeatures(BuildTargetGroup.Android);
@@ -67,9 +71,12 @@ namespace Labyrinth.EditorTools
             if (settings == null) throw new BuildFailedException("[QuestBuild] No OpenXR settings for Android.");
             var quest = settings.GetFeature<MetaQuestFeature>();
             var touch = settings.GetFeature<OculusTouchControllerProfile>();
-            if (quest == null || touch == null) throw new BuildFailedException("[QuestBuild] OpenXR Meta Quest feature or Oculus Touch profile missing.");
+            var hands = settings.GetFeature<HandTracking>();
+            if (quest == null || touch == null || hands == null) throw new BuildFailedException("[QuestBuild] OpenXR Meta Quest feature, Oculus Touch profile or Hand Tracking missing.");
             quest.enabled = true;
             touch.enabled = true;
+            hands.enabled = true;
+            EditorUtility.SetDirty(hands);
             settings.renderMode = OpenXRSettings.RenderMode.SinglePassInstanced;
             EditorUtility.SetDirty(quest);
             EditorUtility.SetDirty(touch);
@@ -172,6 +179,43 @@ namespace Labyrinth.EditorTools
         public void OnPostprocessBuild(BuildReport report)
         {
             if (report.summary.platform == BuildTarget.Android) QuestBuild.EnsurePreloadedXrAssets();
+        }
+    }
+
+    // Quest bare-hand tracking needs these in the launcher manifest; neither OpenXR nor XR Hands adds them. Hands are
+    // optional (required=false), so the app stays a controller app that also accepts hands. HIGH frequency: smoother
+    // hand tracking at some GPU cost (Spike 1 measures whether precision is good enough).
+    public sealed class QuestHandTrackingManifest : IPostGenerateGradleAndroidProject
+    {
+        const string Android = "http://schemas.android.com/apk/res/android";
+        public int callbackOrder => 1000;
+
+        public void OnPostGenerateGradleAndroidProject(string path)
+        {
+            var file = Path.Combine(path, "src", "main", "AndroidManifest.xml");
+            var doc = new XmlDocument();
+            doc.Load(file);
+            var manifest = doc.DocumentElement;
+            Ensure(doc, manifest, "uses-permission", "com.oculus.permission.HAND_TRACKING", null);
+            Ensure(doc, manifest, "uses-feature", "oculus.software.handtracking", ("required", "false"));
+            var app = manifest.SelectSingleNode("application") as XmlElement;
+            if (app != null) Ensure(doc, app, "meta-data", "com.oculus.handtracking.frequency", ("value", "HIGH"));
+            doc.Save(file);
+            Debug.Log($"[QuestBuild] Hand-tracking manifest entries in {file}");
+        }
+
+        static void Ensure(XmlDocument doc, XmlElement parent, string tag, string name, (string key, string value)? extra)
+        {
+            foreach (XmlNode n in parent.ChildNodes)
+                if (n is XmlElement e && e.Name == tag && e.GetAttribute("name", Android) == name)
+                {
+                    if (extra is { } x0) e.SetAttribute(x0.key, Android, x0.value);
+                    return;
+                }
+            var el = doc.CreateElement(tag);
+            el.SetAttribute("name", Android, name);
+            if (extra is { } x) el.SetAttribute(x.key, Android, x.value);
+            parent.AppendChild(el);
         }
     }
 }

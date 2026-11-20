@@ -1,6 +1,6 @@
 # DISCOVERY — Hand tracking for LabyrinthXR
 
-Status: **Spike 0 done and verified on Quest 3 (OpenXR, controllers only). Spike 1 in progress.**
+Status: **Spike 0 done and verified on Quest 3 (OpenXR, controllers only). Spike 1 implemented; headset verification pending.**
 Discovery was Read-only investigation on 2026-11-20 at commit `0f59e8f`; no
 packages installed, no project files changed. Implementation needs explicit approval (see §7).
 
@@ -128,6 +128,34 @@ Toolkit 3.4.1 for reference).
   side-by-side run). Log: OpenXR runtime "Oculus" 210.137.0, session reaches FOCUSED in ~0.3 s, Oculus Touch profile
   bound (17 actions), no errors or exceptions, same process for the whole session; VrApi 72–73/72 FPS, isolated
   stale frames only while a system process (Meta menu / recenter) was active.
+
+### Spike 1 — results (2026-11-20)
+- **Change:** `com.unity.xr.hands` 1.7.3 (bundled); OpenXR Hand Tracking feature on; manifest gets
+  `com.oculus.permission.HAND_TRACKING`, `oculus.software.handtracking` (required=false) and
+  `com.oculus.handtracking.frequency=HIGH` (post-generate Gradle hook in `QuestBuild.cs`; neither package adds them).
+  Core: `HandGrip` takes an `InputSource` (None/Controller/Hand); losing tracking or switching source releases the
+  handle (it stays where it is) and the grip must open before the next press counts. `SourceChoice` (controller wins),
+  `HandPinch` (tip distance 1.5 cm → 1, 5.0 cm → 0; with HandGrip's 0.55/0.35 a pinch closes below 3.1 cm and opens
+  above 3.8 cm). Game: `XrHands` reads the right hand's palm/thumb tip/index tip; `HandSample.FromHand` uses the pinch
+  point (between the tips) for the grab distance and the **palm** for the handle's travel; `XrRig` uses it for the
+  roll handle only when the right controller is not tracked (controller tracking now also honours `isTracked`);
+  debug markers on palm/tips; `[Hands]` log lines (source changes, grabs/releases with cause, per-second palm spread
+  while held).
+- **Regression found by test first:** `TrackingReturnsWithGripClosed_DoesNotRegrab_UntilOpenedAndPressedAgain` failed on
+  the old `HandGrip` (it cleared its grip memory on tracking loss, so a hand returning pinched counted as a fresh press).
+- **Automated tests:** EditMode 76/76 (67 + 9 new: tracking return, source switch while held, hand lost then
+  controller, first source, pinch endpoints, pinch thresholds through HandGrip, pinch jitter); PlayMode 40 passed,
+  3 skipped renders, of 43 (35 + 5 new `HandTrackingTests`: simulated pinch at the roll knob moves the handle and
+  tilts the board right, open keeps it; ±1 mm palm / 2.2–3.4 cm tip jitter never drops; tracking loss while held then
+  a pinched return neither jumps nor regrabs; controller picked up while held releases and keeps the handle; pinch away
+  from the knob does not grab).
+- **Off-headset render** (`Snapshots_HandMarkers`, runtime `HandMarkers` with the rig's material, simulated pose):
+  thumb/index tips meet at the knob's surface on the player's side with the pinch point between them, the palm about
+  7 cm behind and above; after a 4 cm sideways move the handle has swung right and the tips are still on the knob.
+  First render had the pinch point inside the knob (tips hidden): the simulated pose was wrong, fixed in the test helper.
+  Layout only; real tracked poses exist only on the headset.
+- **Build:** OK, 25 MB, `UnityProject/Builds/reference/LabyrinthXR-hands-spike1.apk`; manifest checked with aapt2.
+- **Headset:** not yet verified.
 
 ## 6. Verification plan
 

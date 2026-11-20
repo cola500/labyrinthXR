@@ -1,5 +1,5 @@
 {
   "name": "Labyrinth.Game",
-  "references": ["Labyrinth.Core"],
+  "references": ["Labyrinth.Core", "Unity.XR.Hands"],
   "autoReferenced": true
 }

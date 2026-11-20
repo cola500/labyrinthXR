@@ -148,6 +148,48 @@ namespace Labyrinth.Tests
             Shot("L5-c-campaign-complete", W(0, 1.62f, -0.95f), W(0, 0.92f, 0.05f), 60);
         }
 
+        // Spike 1: the bare-hand debug markers (palm blue, thumb tip red, index tip green, pinch point white) of a
+        // simulated right hand pinching the roll knob, built by the runtime's HandMarkers with the rig's hand material,
+        // then the hand moved 4 cm right through HandDriver so the handle and board follow. Layout only: real tracked
+        // poses exist only on the headset.
+        [UnityTest]
+        public IEnumerator Snapshots_HandMarkers()
+        {
+            g.LoadLevel(1);
+            g.Advance(0.3f);
+            var rig = Object.FindAnyObjectByType<XrRig>();
+            var markers = new HandMarkers(new GameObject("HandMarkersTest").transform, rig.HandMaterial, "Sim");
+            var view = g.RollLever;
+            var hand = SimulatedHand.AtKnob(g.transform, view.Knob);
+            hand.Tips = 0.02f;
+            var pinch = new HandPinch();
+            var driver = new HandDriver();
+            driver.Step(hand.Sample(pinch), g.Roll, view);
+            Assert.IsTrue(g.Roll.Held);
+            yield return null;
+            markers.Show(true, hand.Palm, hand.ThumbTip, hand.IndexTip, true);
+            yield return null;
+            var k = view.Knob.position;
+            Vector3 D(float x, float y, float z) => g.transform.TransformDirection(new Vector3(x, y, z));
+            Shot("H1-hand-at-knob-player", k + D(-0.10f, 0.28f, -0.32f), k + D(0, 0.02f, -0.03f), 40);
+            Shot("H2-hand-at-knob-side", k + D(0.30f, 0.10f, -0.12f), k + D(0, 0.02f, -0.04f), 30);
+            Shot("H3-hand-at-knob-top", k + D(0.0f, 0.38f, -0.02f), k + D(0, 0, -0.03f), 35);
+
+            for (var i = 0; i < 40; i++)
+            {
+                hand.Move(g.transform.right * 0.001f);
+                driver.Step(hand.Sample(pinch), g.Roll, view);
+                g.Advance(0.011f);
+            }
+            g.Advance(1f);
+            yield return null; // LateUpdate poses the handle
+            markers.Show(true, hand.Palm, hand.ThumbTip, hand.IndexTip, true);
+            yield return null;
+            Shot("H4-hand-moved-right-player", k + D(-0.10f, 0.28f, -0.32f), k + D(0.02f, 0.02f, -0.03f), 40);
+            Shot("H5-hand-moved-right-board", W(0, 1.62f, -0.95f), W(0.2f, 0.92f, -0.2f), 60);
+            markers.Destroy();
+        }
+
         void Shot(string name, Vector3 eye, Vector3 look, float fov)
         {
             const int w = 1600, h = 1200;
