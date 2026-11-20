@@ -129,3 +129,8 @@ spacing the level plaque no longer fits between the handle bases and moves onto 
   skip releases made by a fit change (LabyrinthGame logs those), and level loads are logged (`[Level] loaded n/5`).
 - Tests 84 / 58 (+4 skipped renders); APK `UnityProject/Builds/reference/LabyrinthXR-fit-twohands-3.apk`.
 - **Not yet:** Viola.
+
+## Viola (2026-11-20, player's report)
+- The player reports that it worked well for Viola too (fit and bare-hand play). Which measures she used was not
+  reported; the last fit saved on the headset during the logged sessions was 61 cm table / 43 cm apart. No device log
+  of her session was captured.
